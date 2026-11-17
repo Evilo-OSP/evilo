@@ -50,6 +50,17 @@ jobs:
             exit 1; }
           echo "version=$sdk" >> "$GITHUB_OUTPUT"
           echo "app=$app" >> "$GITHUB_OUTPUT"
+          # Changing the SDK source without raising its version would silently keep the
+          # already published artifacts, so plugin authors never receive the change.
+          previous=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)
+          if [[ -n "$previous" ]] && ! git diff --quiet "$previous" HEAD -- evilo-library; then
+            previous_sdk=$(git show "$previous:gradle/libs.versions.toml" \
+              | sed -n 's/^evilo-plugin-sdk = "\(.*\)"$/\1/p')
+            [[ "$sdk" != "$previous_sdk" ]] || {
+              echo "evilo-library changed since $previous but evilo-plugin-sdk is still $sdk."
+              echo "Raise the SDK patch so the new artifacts are published."
+              exit 1; }
+          fi
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             [[ "$GITHUB_REF_NAME" == "v$app" ]] || {
               echo "Tag $GITHUB_REF_NAME does not match app version v$app."; exit 1; }

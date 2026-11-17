@@ -26,14 +26,18 @@ one release train:
 | Rule | Enforced by |
 | --- | --- |
 | `evilo-plugin-sdk` shares `major.minor` with `EVILO_VERSION_NAME` | `verify` job, before anything is built |
-| The SDK patch (`z`) advances on its own when only the SDK changes | Convention, not CI |
-| An app `major.minor` bump resets the SDK patch to `0` | Same invariant: `1.1.0` requires SDK `1.1.x` |
+| A change under `evilo-library/` must raise `evilo-plugin-sdk` | `verify` job, comparing against the previous tag |
+| An app `major.minor` bump resets the SDK patch to `0` | The two checks above |
 | A `v*` tag must equal `v<EVILO_VERSION_NAME>` | `verify` job |
 
 So the SDK ships as part of an app release rather than on its own timeline. A
 tag publishes the SDK only when that patch version is absent from Maven Central;
 an app-only release reuses the published SDK, and `publish` stops after `verify`
 instead of failing.
+
+The forgotten-bump check exists because the alternative fails silently: edit
+`evilo-library/`, leave the version alone, and the tag would report success while
+plugin authors keep resolving the old artifacts.
 
 This coordinate is a public API commitment — plugin repositories compile against
 it. The protocol is designed for additive change: new optional fields and
@@ -128,6 +132,7 @@ variables, so nothing else needs changing.
 | --- | --- |
 | `Tag vA.B.C does not match app version vX.Y.Z` | The tag and `EVILO_VERSION_NAME` disagree. |
 | `evilo-plugin-sdk X.Y.Z must share major.minor with EVILO_VERSION_NAME` | Only one of the two versions was bumped. |
+| `evilo-library changed since vX.Y.Z but evilo-plugin-sdk is still …` | The SDK source changed without a version bump, so nothing would be published. |
 | `evilo-library X.Y.Z is already on Maven Central` | Not an error: the release is skipped. Bump the SDK patch to publish a new one. |
 | `Configure MAVEN_CENTRAL_*` | Missing repository secret. |
 | `Missing sources for …` / `Missing javadoc for …` | Publication configuration was changed away from `JavadocJar.Empty`/`SourcesJar.Sources`. |
