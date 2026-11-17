@@ -62,7 +62,7 @@ Because app and SDK share the number, an app-only release still tags the same
 version. The SDK is published only when that version is absent from Maven
 Central; otherwise `verify` passes and `publish` is skipped rather than failing.
 
-Current version: `1.0.0`.
+Current version: `0.0.1` — the first SDK publication, while the app is still in development.
 
 ## Local verification
 
@@ -96,9 +96,9 @@ Publish:
 ```sh
 git switch main
 ./.github/scripts/bump_version.py z    # only when evilo-library/ changed
-git add -A && git commit -m "chore(release): 1.0.1"
-git tag v1.0.1
-git push origin main v1.0.1
+git add -A && git commit -m "chore(release): 0.0.2"
+git tag v0.0.2
+git push origin main v0.0.2
 ```
 
 `.github/workflows/publish-library.yml` runs on `v*` tags, the same namespace as an app release:
@@ -126,7 +126,7 @@ Central processing is asynchronous. Check the coordinates before depending on
 them:
 
 ```sh
-curl -sI https://repo1.maven.org/maven2/io/github/crowforkotlin/evilo/evilo-library/1.0.0/evilo-library-1.0.0.pom | head -1
+curl -sI https://repo1.maven.org/maven2/io/github/crowforkotlin/evilo/evilo-library/0.0.1/evilo-library-0.0.1.pom | head -1
 ```
 
 Then, in every plugin repository:
