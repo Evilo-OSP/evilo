@@ -19,22 +19,15 @@ whole release is ~1.1 MiB / 43 files, or ~4.5 MiB / 172 files once Central adds
 
 ## Versioning
 
-App and SDK publish under **one version**, `EVILO_VERSION_NAME` in
-`project.properties`. There is no separate SDK version: `evilo-library` reads the
-same property, and the plugin repositories pin the coordinate that this release
-publishes.
+There are two versions, and they move independently:
 
-The three positions are an odometer with base 10, not semver. Raise whichever
-position matches the change; a higher position carries and resets the ones below
-it:
-
-| Raise | Meaning | Example |
+| Version | Where | Meaning |
 | --- | --- | --- |
-| `z` | routine change, usually additive: new fields, new optional capabilities, fixes | `1.0.0 → 1.0.1` |
-| `y` | a larger step, e.g. protocol additions plugins should adopt | `1.0.5 → 1.1.0` |
-| `x` | a breaking change: old plugins cannot load, plugins must update | `1.4.2 → 2.0.0` |
+| `EVILO_VERSION_NAME` | `project.properties` | The application release. Tags `v*`. Does not affect the SDK. |
+| `evilo-plugin-sdk` | `gradle/libs.versions.toml` | The SDK protocol contract that plugin repositories compile against. Tags `library-v*`. |
 
-Carry behaviour, exactly as the odometer implies:
+Each position carries like an odometer with base 10 rather than semver: raising a
+higher position resets the ones below it.
 
 ```
 1.0.0 + z = 1.0.1
@@ -43,26 +36,38 @@ Carry behaviour, exactly as the odometer implies:
 1.9.5 + x = 2.0.0
 ```
 
-Use the script rather than editing by hand; it also raises `EVILO_VERSION_CODE`,
-which Android and iOS require to increase monotonically:
+Use the script instead of editing by hand; it applies the carry, refuses no-op
+increments, and raises `EVILO_VERSION_CODE` for the app target because Android
+and iOS require it to increase monotonically:
 
 ```sh
-./.github/scripts/bump_version.py z     # or y, or x
-./.github/scripts/bump_version.py z --dry-run
+./.github/scripts/bump_version.py app z        # app release
+./.github/scripts/bump_version.py library z    # SDK publication
+./.github/scripts/bump_version.py library z --dry-run
 ```
 
-`verify` enforces two invariants before building anything:
+**Bump the library version only when `evilo-library/` changes.** It is the
+protocol contract, not an app release counter: republishing identical artifacts
+under a new number spends Maven Central quota and gives plugin authors nothing.
+An app release leaves it alone, and `verify` fails if the module changed without
+a version bump.
 
-- a `v*` tag must equal `v<EVILO_VERSION_NAME>`;
-- a change under `evilo-library/` since the previous tag must raise the version.
-  Without that check the tag would skip publication as "already published" and
-  plugin authors would silently keep resolving stale artifacts.
+Which position to raise, for the library:
 
-Because app and SDK share the number, an app-only release still tags the same
-version. The SDK is published only when that version is absent from Maven
-Central; otherwise `verify` passes and `publish` is skipped rather than failing.
+| Raise | Meaning |
+| --- | --- |
+| `z` | routine change: new model fields, new optional capabilities, fixes. Old plugins keep working. |
+| `y` | a larger step plugins should adopt deliberately; still source-compatible. |
+| `x` | breaking: plugin repositories must update to compile or load. |
 
-Current version: `0.0.1` — the first SDK publication, while the app is still in development.
+`verify` enforces:
+
+- a `library-v*` tag must equal `library-v<evilo-plugin-sdk>`;
+- a change under `evilo-library/` since the previous `library-v*` tag must raise
+  the version, otherwise the tag would publish nothing while reporting success;
+- a version already present on Maven Central is skipped rather than re-uploaded.
+
+Current versions: app `1.0.0`, library `1.0.0`.
 
 ## Local verification
 
@@ -95,18 +100,19 @@ Publish:
 
 ```sh
 git switch main
-./.github/scripts/bump_version.py z    # only when evilo-library/ changed
-git add -A && git commit -m "chore(release): 0.0.2"
-git tag v0.0.2
-git push origin main v0.0.2
+./.github/scripts/bump_version.py library z    # only when evilo-library/ changed
+git add -A && git commit -m "chore(library): 1.0.1"
+git tag library-v1.0.1
+git push origin main library-v1.0.1
 ```
 
-`.github/workflows/publish-library.yml` runs on `v*` tags, the same namespace as an app release:
+`.github/workflows/publish-library.yml` runs on `library-v*` tags, which keeps the
+SDK history separate from `v*` app releases:
 
-1. `verify` reads `EVILO_VERSION_NAME`, fails unless the tag matches it and an
+1. `verify` reads `evilo-plugin-sdk`, fails unless the tag matches it and an
    `evilo-library/` change raised it, then checks Maven Central for that version.
-   When it is already published (an app-only release), the remaining steps and
-   the `publish` job are skipped rather than failed. Otherwise it runs
+   When that version is already on Central, the remaining steps and the
+   `publish` job are skipped rather than failed. Otherwise it runs
    `:evilo-library:jvmTest`, stages the publication into `~/.m2`, rejects the
    release when it exceeds the footprint gate, and asserts that each POM carries
    license/SCM metadata and that sources and javadoc JARs exist.
@@ -126,14 +132,14 @@ Central processing is asynchronous. Check the coordinates before depending on
 them:
 
 ```sh
-curl -sI https://repo1.maven.org/maven2/io/github/crowforkotlin/evilo/evilo-library/0.0.1/evilo-library-0.0.1.pom | head -1
+curl -sI https://repo1.maven.org/maven2/io/github/crowforkotlin/evilo/evilo-library/1.0.0/evilo-library-1.0.0.pom | head -1
 ```
 
 Then, in every plugin repository:
 
-1. Set `evilo-plugin-sdk` in `gradle/libs.versions.toml` to the published version
-   (plugin repositories keep their own copy; this repository reads
-   `project.properties`).
+1. Set `evilo-plugin-sdk` in `gradle/libs.versions.toml` to the published version.
+   Plugin repositories keep their own pin; this repository's value only decides
+   what it publishes.
 2. Drop `-Pevilo.sdkPath=../evilo` from local commands.
 3. Delete the `EVILO_SDK_REPOSITORY` and `EVILO_SDK_REVISION` repository variables.
    They exist only to check this repository out while the artifact is missing

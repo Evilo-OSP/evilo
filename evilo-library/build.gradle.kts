@@ -1,7 +1,6 @@
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
-import crow.evilo.buildlogic.eviloProperty
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -12,8 +11,9 @@ plugins {
 }
 
 group = "io.github.crowforkotlin.evilo"
-// The SDK ships as part of an app release and shares its version; project.properties owns it.
-version = eviloProperty("EVILO_VERSION_NAME")
+// The SDK version is the protocol contract for plugin authors; it moves only when
+// this module changes, independently of the app release version.
+version = libs.versions.evilo.plugin.sdk.get()
 
 configure<MavenPublishBaseExtension> {
     configure(

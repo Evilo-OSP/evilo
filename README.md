@@ -263,9 +263,11 @@ execute upstream tasks and requires that checkout's toolchain/artifacts.
 ## SDK, signing, and storage
 
 The SDK coordinate is `io.github.crowforkotlin.evilo:evilo-library`, published to
-Maven Central by `.github/workflows/publish-library.yml` under the same
-`EVILO_VERSION_NAME` as the app. Templates consume this library rather than
-copying models/protocols; see [docs/library-publishing.md](docs/library-publishing.md)
+Maven Central by `.github/workflows/publish-library.yml`. Its version
+(`evilo-plugin-sdk`) is independent of `EVILO_VERSION_NAME`: it is the protocol
+contract that plugin repositories compile against, so it moves only when this
+module changes. Templates consume the library rather than copying
+models/protocols; see [docs/library-publishing.md](docs/library-publishing.md)
 for the versioning rules and the release procedure. Until a given version is
 published, use `-Pevilo.sdkPath=../evilo`. There is no third SDK repository;
 changes are maintained once in `evilo-library`. Consolidation preserves the

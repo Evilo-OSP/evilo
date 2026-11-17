@@ -1,12 +1,13 @@
 name: Publish evilo library
 
 # Publishes io.github.crowforkotlin.evilo:evilo-library to Maven Central.
-# Integration plugins consume this coordinate, so its version is a public API
-# commitment: it is EVILO_VERSION_NAME in project.properties, shared with the app
-# release. Never republish an existing version.
+# The SDK version (evilo-plugin-sdk) is the protocol contract that plugin
+# repositories compile against. It is independent of EVILO_VERSION_NAME so an app
+# release does not republish identical artifacts; the tag prefix keeps the two
+# histories apart. Never republish an existing version.
 on:
   push:
-    tags: ['v*']
+    tags: ['library-v*']
   workflow_dispatch:
     inputs:
       dry_run:
@@ -23,7 +24,7 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     outputs:
-      already: ${{ steps.published.outputs.already }}
+      skip: ${{ steps.published.outputs.skip }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,50 +37,56 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Read the release version
+      - name: Read the SDK version and check it against the last publication
         id: version
         run: |
-          version=$(sed -n 's/^EVILO_VERSION_NAME=\(.*\)$/\1/p' project.properties)
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid EVILO_VERSION_NAME: '$version'"; exit 1; }
+          version=$(sed -n 's/^evilo-plugin-sdk = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid evilo-plugin-sdk: '$version'"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            [[ "$GITHUB_REF_NAME" == "v$version" ]] || {
-              echo "Tag $GITHUB_REF_NAME does not match EVILO_VERSION_NAME v$version."; exit 1; }
+            [[ "$GITHUB_REF_NAME" == "library-v$version" ]] || {
+              echo "Tag $GITHUB_REF_NAME does not match library-v$version."; exit 1; }
           fi
-          # The app and the SDK share one version, so a change under evilo-library/
-          # has to raise it; otherwise the tag would skip publication as
-          # already-published and plugin authors would keep resolving stale artifacts.
-          previous=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)
-          if [[ -n "$previous" ]]; then
-            previous_version=$(git show "$previous:project.properties" \
-              | sed -n 's/^EVILO_VERSION_NAME=\(.*\)$/\1/p')
-            if ! git diff --quiet "$previous" HEAD -- evilo-library; then
-              [[ "$version" != "$previous_version" ]] || {
-                echo "evilo-library changed since $previous but EVILO_VERSION_NAME is still $version."
-                echo "Raise the version so the new SDK artifacts are published."
-                exit 1; }
-            fi
+          # The SDK version is a protocol contract, not an app release counter, so an
+          # app-only commit must not require a new SDK release. A changed module,
+          # though, must not publish under an unchanged version.
+          previous=$(git describe --tags --abbrev=0 --match 'library-v*' HEAD^ 2>/dev/null || true)
+          changed=false
+          if [[ -n "$previous" ]] && ! git diff --quiet "$previous" HEAD -- evilo-library; then
+            changed=true
           fi
-          echo "Releasing $version"
-      - name: Check whether this SDK version is already published
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          if [[ "$changed" == "true" && -z "$previous" ]]; then
+            echo "No previous library-v* tag; publishing the first SDK release."
+          elif [[ "$changed" == "true" ]]; then
+            previous_version=$(git show "$previous:gradle/libs.versions.toml" \
+              | sed -n 's/^evilo-plugin-sdk = "\(.*\)"$/\1/p')
+            [[ "$version" != "$previous_version" ]] || {
+              echo "evilo-library changed since $previous but evilo-plugin-sdk is still $version."
+              echo "Raise the SDK version so the new artifacts are published."
+              exit 1; }
+          fi
+          echo "SDK $version (module changed since $previous: $changed)"
+      - name: Decide whether this tag has anything to publish
         id: published
         run: |
           version='${{ steps.version.outputs.version }}'
           status=$(curl -s -o /dev/null -w '%{http_code}' \
             "https://repo1.maven.org/maven2/io/github/crowforkotlin/evilo/evilo-library/$version/evilo-library-$version.pom")
           if [[ "$status" == "200" ]]; then
-            echo "evilo-library $version is already on Maven Central; skipping publication."
-            echo "already=true" >> "$GITHUB_OUTPUT"
+            # Republishing a taken version would either fail or waste quota.
+            echo "evilo-library $version is already on Maven Central; nothing to publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
           else
-            echo "already=false" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Run library tests
-        if: ${{ steps.published.outputs.already != 'true' }}
+        if: ${{ steps.published.outputs.skip != 'true' }}
         # jvmTest covers the portable model and protocol tests. The js/wasmJs suites run in a
         # browser, and the WASI test binary cannot be instantiated by current Node releases.
         run: ./gradlew :evilo-library:jvmTest --no-daemon --no-configuration-cache
       - name: Stage the publication locally
-        if: ${{ steps.published.outputs.already != 'true' }}
+        if: ${{ steps.published.outputs.skip != 'true' }}
         run: |
           ./gradlew :evilo-library:publishToMavenLocal \
             --no-daemon --no-configuration-cache --no-build-cache
@@ -91,7 +98,7 @@ jobs:
             grep -q '<scm>' "$pom" || { echo "Missing scm metadata in $pom"; exit 1; }
           done
       - name: Check the publication footprint
-        if: ${{ steps.published.outputs.already != 'true' }}
+        if: ${{ steps.published.outputs.skip != 'true' }}
         # Central's free tier meters monthly bytes and file counts for the whole
         # organisation. Fail early instead of discovering the limit during upload.
         run: |
@@ -110,7 +117,7 @@ jobs:
           (( total < 8 * 1024 * 1024 )) || { echo "Publication exceeds 8 MiB; trim targets or artifacts."; exit 1; }
           (( files < 60 )) || { echo "Publication exceeds 60 files; trim targets or artifacts."; exit 1; }
       - name: Verify the published sources and javadoc artifacts
-        if: ${{ steps.published.outputs.already != 'true' }}
+        if: ${{ steps.published.outputs.skip != 'true' }}
         run: |
           version='${{ steps.version.outputs.version }}'
           for artifact in evilo-library evilo-library-jvm evilo-library-wasm-wasi; do
@@ -122,7 +129,7 @@ jobs:
     needs: verify
     # A tag publishes the SDK only when that patch version is new; an app-only bump
     # reuses the published SDK and stops after verify.
-    if: ${{ !inputs.dry_run && needs.verify.outputs.already != 'true' }}
+    if: ${{ !inputs.dry_run && needs.verify.outputs.skip != 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
