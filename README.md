@@ -262,14 +262,14 @@ execute upstream tasks and requires that checkout's toolchain/artifacts.
 
 ## SDK, signing, and storage
 
-The SDK coordinate is `io.github.crowforkotlin.evilo:evilo-library:1.0.0`,
-published to Maven Central by `.github/workflows/publish-library.yml`. Templates
-consume this library rather than copying models/protocols; see
-[docs/library-publishing.md](docs/library-publishing.md) for the release
-procedure. Until a given version is published, use `-Pevilo.sdkPath=../evilo`.
-There is no third SDK repository; changes are maintained once in `evilo-library`.
-Consolidation preserves the serialized protocol and service packages; it does not
-change the bridge ABI.
+The SDK coordinate is `io.github.crowforkotlin.evilo:evilo-library`, published to
+Maven Central by `.github/workflows/publish-library.yml` under the same
+`EVILO_VERSION_NAME` as the app. Templates consume this library rather than
+copying models/protocols; see [docs/library-publishing.md](docs/library-publishing.md)
+for the versioning rules and the release procedure. Until a given version is
+published, use `-Pevilo.sdkPath=../evilo`. There is no third SDK repository;
+changes are maintained once in `evilo-library`. Consolidation preserves the
+serialized protocol and service packages; it does not change the bridge ABI.
 
 `evilo-core` owns plugin connections and reader state without depending on Compose.
 Sessions return permission-checked image bytes; `evilo-app` validates image headers

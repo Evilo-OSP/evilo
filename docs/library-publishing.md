@@ -19,36 +19,50 @@ whole release is ~1.1 MiB / 43 files, or ~4.5 MiB / 172 files once Central adds
 
 ## Versioning
 
-The SDK version is `evilo-plugin-sdk` in `gradle/libs.versions.toml`; the app
-version is `EVILO_VERSION_NAME` in `project.properties`. They are two values but
-one release train:
+App and SDK publish under **one version**, `EVILO_VERSION_NAME` in
+`project.properties`. There is no separate SDK version: `evilo-library` reads the
+same property, and the plugin repositories pin the coordinate that this release
+publishes.
 
-| Rule | Enforced by |
-| --- | --- |
-| `evilo-plugin-sdk` shares `major.minor` with `EVILO_VERSION_NAME` | `verify` job, before anything is built |
-| A change under `evilo-library/` must raise `evilo-plugin-sdk` | `verify` job, comparing against the previous tag |
-| An app `major.minor` bump resets the SDK patch to `0` | The two checks above |
-| A `v*` tag must equal `v<EVILO_VERSION_NAME>` | `verify` job |
+The three positions are an odometer with base 10, not semver. Raise whichever
+position matches the change; a higher position carries and resets the ones below
+it:
 
-So the SDK ships as part of an app release rather than on its own timeline. A
-tag publishes the SDK only when that patch version is absent from Maven Central;
-an app-only release reuses the published SDK, and `publish` stops after `verify`
-instead of failing.
+| Raise | Meaning | Example |
+| --- | --- | --- |
+| `z` | routine change, usually additive: new fields, new optional capabilities, fixes | `1.0.0 → 1.0.1` |
+| `y` | a larger step, e.g. protocol additions plugins should adopt | `1.0.5 → 1.1.0` |
+| `x` | a breaking change: old plugins cannot load, plugins must update | `1.4.2 → 2.0.0` |
 
-The forgotten-bump check exists because the alternative fails silently: edit
-`evilo-library/`, leave the version alone, and the tag would report success while
-plugin authors keep resolving the old artifacts.
+Carry behaviour, exactly as the odometer implies:
 
-This coordinate is a public API commitment — plugin repositories compile against
-it. The protocol is designed for additive change: new optional fields and
-capabilities appear without breaking existing plugins, so most releases raise
-`z`. Reserve a `minor` bump for protocol additions that plugins must opt into,
-and a `major` bump for a change that breaks `MangaSourceService`,
-`EviloPluginService`, or the serialized envelopes. A `major`/`minor` bump forces
-every plugin repository to update in lockstep, which is why it needs an explicit
-decision.
+```
+1.0.0 + z = 1.0.1
+1.0.9 + z = 1.1.0     (z resets when y moves)
+1.9.5 + y = 2.0.0     (y and z reset when x moves)
+1.9.5 + x = 2.0.0
+```
 
-Current versions: app `1.0.0`, SDK `1.0.0`.
+Use the script rather than editing by hand; it also raises `EVILO_VERSION_CODE`,
+which Android and iOS require to increase monotonically:
+
+```sh
+./.github/scripts/bump_version.py z     # or y, or x
+./.github/scripts/bump_version.py z --dry-run
+```
+
+`verify` enforces two invariants before building anything:
+
+- a `v*` tag must equal `v<EVILO_VERSION_NAME>`;
+- a change under `evilo-library/` since the previous tag must raise the version.
+  Without that check the tag would skip publication as "already published" and
+  plugin authors would silently keep resolving stale artifacts.
+
+Because app and SDK share the number, an app-only release still tags the same
+version. The SDK is published only when that version is absent from Maven
+Central; otherwise `verify` passes and `publish` is skipped rather than failing.
+
+Current version: `1.0.0`.
 
 ## Local verification
 
@@ -81,15 +95,16 @@ Publish:
 
 ```sh
 git switch main
-# bump evilo-plugin-sdk (and EVILO_VERSION_NAME when major.minor changes), then commit
-git tag v1.0.0
-git push origin v1.0.0
+./.github/scripts/bump_version.py z    # only when evilo-library/ changed
+git add -A && git commit -m "chore(release): 1.0.1"
+git tag v1.0.1
+git push origin main v1.0.1
 ```
 
 `.github/workflows/publish-library.yml` runs on `v*` tags, the same namespace as an app release:
 
-1. `verify` resolves both versions, fails unless they share `major.minor` and the
-   tag matches the app version, then checks Maven Central for that SDK version.
+1. `verify` reads `EVILO_VERSION_NAME`, fails unless the tag matches it and an
+   `evilo-library/` change raised it, then checks Maven Central for that version.
    When it is already published (an app-only release), the remaining steps and
    the `publish` job are skipped rather than failed. Otherwise it runs
    `:evilo-library:jvmTest`, stages the publication into `~/.m2`, rejects the
@@ -116,7 +131,9 @@ curl -sI https://repo1.maven.org/maven2/io/github/crowforkotlin/evilo/evilo-libr
 
 Then, in every plugin repository:
 
-1. Set `evilo-plugin-sdk` in `gradle/libs.versions.toml` to the published version.
+1. Set `evilo-plugin-sdk` in `gradle/libs.versions.toml` to the published version
+   (plugin repositories keep their own copy; this repository reads
+   `project.properties`).
 2. Drop `-Pevilo.sdkPath=../evilo` from local commands.
 3. Delete the `EVILO_SDK_REPOSITORY` and `EVILO_SDK_REVISION` repository variables.
    They exist only to check this repository out while the artifact is missing
@@ -131,8 +148,7 @@ variables, so nothing else needs changing.
 | Symptom | Cause |
 | --- | --- |
 | `Tag vA.B.C does not match app version vX.Y.Z` | The tag and `EVILO_VERSION_NAME` disagree. |
-| `evilo-plugin-sdk X.Y.Z must share major.minor with EVILO_VERSION_NAME` | Only one of the two versions was bumped. |
-| `evilo-library changed since vX.Y.Z but evilo-plugin-sdk is still …` | The SDK source changed without a version bump, so nothing would be published. |
+| `evilo-library changed since vX.Y.Z but EVILO_VERSION_NAME is still …` | The SDK source changed without a version bump, so nothing would be published. |
 | `evilo-library X.Y.Z is already on Maven Central` | Not an error: the release is skipped. Bump the SDK patch to publish a new one. |
 | `Configure MAVEN_CENTRAL_*` | Missing repository secret. |
 | `Missing sources for …` / `Missing javadoc for …` | Publication configuration was changed away from `JavadocJar.Empty`/`SourcesJar.Sources`. |

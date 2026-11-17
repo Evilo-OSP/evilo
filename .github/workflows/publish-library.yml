@@ -1,9 +1,9 @@
 name: Publish evilo library
 
 # Publishes io.github.crowforkotlin.evilo:evilo-library to Maven Central.
-# Integration plugins consume this coordinate, so the version here is a public
-# API commitment: bump `evilo-plugin-sdk` in gradle/libs.versions.toml, never
-# republish an existing version.
+# Integration plugins consume this coordinate, so its version is a public API
+# commitment: it is EVILO_VERSION_NAME in project.properties, shared with the app
+# release. Never republish an existing version.
 on:
   push:
     tags: ['v*']
@@ -36,36 +36,31 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Resolve the SDK version and check the version invariant
+      - name: Read the release version
         id: version
         run: |
-          sdk=$(sed -n 's/^evilo-plugin-sdk = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
-          app=$(sed -n 's/^EVILO_VERSION_NAME=\(.*\)$/\1/p' project.properties)
-          [[ "$sdk" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid evilo-plugin-sdk: '$sdk'"; exit 1; }
-          [[ "$app" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid EVILO_VERSION_NAME: '$app'"; exit 1; }
-          # The SDK ships as part of an app release: same major.minor, independent patch.
-          [[ "${sdk%.*}" == "${app%.*}" ]] || {
-            echo "evilo-plugin-sdk $sdk must share major.minor with EVILO_VERSION_NAME $app."
-            echo "Bump both in the same commit; the SDK patch may advance on its own."
-            exit 1; }
-          echo "version=$sdk" >> "$GITHUB_OUTPUT"
-          echo "app=$app" >> "$GITHUB_OUTPUT"
-          # Changing the SDK source without raising its version would silently keep the
-          # already published artifacts, so plugin authors never receive the change.
-          previous=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)
-          if [[ -n "$previous" ]] && ! git diff --quiet "$previous" HEAD -- evilo-library; then
-            previous_sdk=$(git show "$previous:gradle/libs.versions.toml" \
-              | sed -n 's/^evilo-plugin-sdk = "\(.*\)"$/\1/p')
-            [[ "$sdk" != "$previous_sdk" ]] || {
-              echo "evilo-library changed since $previous but evilo-plugin-sdk is still $sdk."
-              echo "Raise the SDK patch so the new artifacts are published."
-              exit 1; }
-          fi
+          version=$(sed -n 's/^EVILO_VERSION_NAME=\(.*\)$/\1/p' project.properties)
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid EVILO_VERSION_NAME: '$version'"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            [[ "$GITHUB_REF_NAME" == "v$app" ]] || {
-              echo "Tag $GITHUB_REF_NAME does not match app version v$app."; exit 1; }
+            [[ "$GITHUB_REF_NAME" == "v$version" ]] || {
+              echo "Tag $GITHUB_REF_NAME does not match EVILO_VERSION_NAME v$version."; exit 1; }
           fi
-          echo "SDK $sdk for app $app"
+          # The app and the SDK share one version, so a change under evilo-library/
+          # has to raise it; otherwise the tag would skip publication as
+          # already-published and plugin authors would keep resolving stale artifacts.
+          previous=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)
+          if [[ -n "$previous" ]]; then
+            previous_version=$(git show "$previous:project.properties" \
+              | sed -n 's/^EVILO_VERSION_NAME=\(.*\)$/\1/p')
+            if ! git diff --quiet "$previous" HEAD -- evilo-library; then
+              [[ "$version" != "$previous_version" ]] || {
+                echo "evilo-library changed since $previous but EVILO_VERSION_NAME is still $version."
+                echo "Raise the version so the new SDK artifacts are published."
+                exit 1; }
+            fi
+          fi
+          echo "Releasing $version"
       - name: Check whether this SDK version is already published
         id: published
         run: |
@@ -153,7 +148,7 @@ jobs:
       - name: Report the published coordinates
         if: ${{ success() }}
         run: |
-          version=$(sed -n 's/^evilo-plugin-sdk = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
+          version='${{ steps.version.outputs.version }}'
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
           Published \`io.github.crowforkotlin.evilo:evilo-library:$version\`.
 
