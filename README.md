@@ -27,7 +27,6 @@ UI features are packages in one module, not separate Gradle projects.
 ```text
 evilo-app/                   All shared Compose UI, theme, fonts, and app composition
 evilo-core/                  Catalogs, HTTP, storage, loading, sessions, and controllers
-evilo-library/               Portable models and the maintained plugin protocol SDK
 evilo-android/               Android launcher, manifest, resources, APK packaging
 evilo-desktop/               Desktop launcher and distribution configuration
 evilo-web/                   JS/Wasm JS viewport launcher and web loading assets
@@ -40,7 +39,8 @@ docs/                        Plugin contracts and shared UI design rules
 ```
 
 Dependencies flow `evilo-app -> evilo-core -> evilo-library`. Only the library is
-published for plugins; it has no Compose, host HTTP, or persistence backend.
+published for plugins, from its own repository; it has no Compose, host HTTP, or
+persistence backend.
 Existing Kotlin packages are preserved: models/protocol use `crow.evilo.model`
 and `crow.evilo.plugin.api`; host logic uses `crow.evilo.plugin.*`,
 `crow.evilo.network.ktor`, `crow.evilo.storage`, and app/reader controller packages.
@@ -60,7 +60,7 @@ responsive behavior, and the font license are documented in
 [`docs/design-system.md`](docs/design-system.md).
 
 Shared modules retain Android, JVM, iOS ARM64/simulator ARM64, JS, and Wasm JS.
-Only `evilo-library` also declares Wasm WASI for guests.
+The `evilo-library` artifact consumed here also declares Wasm WASI for guests.
 `evilo-desktop` and `evilo-web` own executables; `evilo-app` exports the static
 `Evilo` Apple framework. Apple builds require macOS/Xcode, not target removal.
 
@@ -263,15 +263,15 @@ execute upstream tasks and requires that checkout's toolchain/artifacts.
 ## SDK, signing, and storage
 
 The SDK coordinate is `io.github.crowforkotlin.evilo:evilo-library`, published to
-Maven Central by `.github/workflows/publish-library.yml`. Its version
-(`evilo-plugin-sdk`) is independent of `EVILO_VERSION_NAME`: it is the protocol
-contract that plugin repositories compile against, so it moves only when this
-module changes. Templates consume the library rather than copying
-models/protocols; see [docs/library-publishing.md](docs/library-publishing.md)
-for the versioning rules and the release procedure. Until a given version is
-published, use `-Pevilo.sdkPath=../evilo`. There is no third SDK repository;
-changes are maintained once in `evilo-library`. Consolidation preserves the
-serialized protocol and service packages; it does not change the bridge ABI.
+Maven Central from its own repository,
+[`evilo-library`](https://github.com/crowforkotlin/evilo-library). Its version is
+independent of `EVILO_VERSION_NAME`: it is the protocol contract that plugin
+repositories compile against, so it moves only when that module changes. This
+repository consumes the published coordinate; templates consume the same one and
+never copy models or protocols. Until a version is published, publish it locally
+from the SDK repository or use `-Pevilo.sdkPath=../evilo-library` in a plugin
+repository. Consolidation preserves the serialized protocol and service packages;
+it does not change the bridge ABI.
 
 `evilo-core` owns plugin connections and reader state without depending on Compose.
 Sessions return permission-checked image bytes; `evilo-app` validates image headers
@@ -372,7 +372,7 @@ requests. Authorizing an APK build/install does not authorize other targets or t
 | Browser Wasm distribution | `./gradlew :evilo-web:wasmJsBrowserDistribution` |
 | Browser JS distribution | `./gradlew :evilo-web:jsBrowserDistribution` |
 | iOS simulator framework | `./gradlew :evilo-app:linkDebugFrameworkIosSimulatorArm64` on macOS |
-| Protocol/model tests | `./gradlew :evilo-library:jvmTest` |
+| Protocol/model tests | `./gradlew :jvmTest` in the `evilo-library` repository |
 | Catalog/storage/HTTP/runtime/controller tests | `./gradlew :evilo-core:jvmTest` |
 | Image decoder, request approval, and image-scope tests | `./gradlew :evilo-app:jvmTest` |
 

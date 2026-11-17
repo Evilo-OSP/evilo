@@ -1,27 +1,21 @@
 #!/usr/bin/env python3
-"""Raise one of evilo's two independent versions.
+"""Raise the evilo app version by one increment of a chosen position.
 
-Positions carry like an odometer with base 10: raising a higher position resets
-the ones below it.
+Positions carry like an odometer with base 10: incrementing a higher position
+resets the ones below it.
 
     1.0.0 + z -> 1.0.1
     1.0.9 + z -> 1.1.0      (carry resets z)
     1.9.5 + y -> 2.0.0      (carry resets y and z)
+    1.9.5 + x -> 2.0.0
 
-Two versions are tracked separately:
-
-    app      EVILO_VERSION_NAME in project.properties, plus EVILO_VERSION_CODE
-    library  evilo-plugin-sdk in gradle/libs.versions.toml
-
-The app version tracks the application release. The library version is the
-protocol contract that plugin repositories compile against, so it moves only
-when `evilo-library/` changes. Publishing the library under an app bump would
-re-upload identical artifacts and spend Maven Central quota for nothing.
+This raises EVILO_VERSION_NAME and EVILO_VERSION_CODE in project.properties.
+The plugin SDK has its own repository (evilo-library) and its own version; it is
+not touched here.
 
 Usage:
-    ./.github/scripts/bump_version.py app z
-    ./.github/scripts/bump_version.py library z
-    ./.github/scripts/bump_version.py library z --dry-run
+    ./.github/scripts/bump_version.py z      # or y, or x
+    ./.github/scripts/bump_version.py z --dry-run
 """
 
 import argparse
@@ -30,14 +24,16 @@ import re
 import sys
 
 POSITIONS = {"x": 0, "y": 1, "z": 2}
+PROPERTIES = pathlib.Path("project.properties")
+NAME = "EVILO_VERSION_NAME"
+CODE = "EVILO_VERSION_CODE"
 
 
-def read(path, pattern):
-    text = path.read_text()
-    match = re.search(pattern, text, re.MULTILINE)
+def read(text, key):
+    match = re.search(rf"^{key}=(.*)$", text, re.MULTILINE)
     if not match:
-        raise SystemExit(f"{path} does not contain the expected version line.")
-    return text, match.group(1).strip()
+        raise SystemExit(f"project.properties does not contain {key}.")
+    return match.group(1).strip()
 
 
 def bump(version, position):
@@ -61,38 +57,25 @@ def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("target", choices=["app", "library"], help="version to raise")
     parser.add_argument("position", choices=sorted(POSITIONS), help="position to raise")
     parser.add_argument("--dry-run", action="store_true", help="print the result without writing")
     args = parser.parse_args()
 
-    if args.target == "app":
-        properties = pathlib.Path("project.properties")
-        if not properties.is_file():
-            raise SystemExit("Run this from the repository root; no project.properties here.")
-        text, current = read(properties, r"^EVILO_VERSION_NAME=(.*)$")
-        _, code = read(properties, r"^EVILO_VERSION_CODE=(.*)$")
-        updated = bump(current, args.position)
-        print(f"app     {current} -> {updated} (raise {args.position}, versionCode {int(code) + 1})")
-        if args.dry_run:
-            return
-        text = re.sub(r"^EVILO_VERSION_NAME=.*$", f"EVILO_VERSION_NAME={updated}", text, count=1, flags=re.MULTILINE)
-        text = re.sub(r"^EVILO_VERSION_CODE=.*$", f"EVILO_VERSION_CODE={int(code) + 1}", text, count=1, flags=re.MULTILINE)
-        properties.write_text(text)
-        print("Updated project.properties. The library version is untouched.")
-        return
-
-    catalog = pathlib.Path("gradle/libs.versions.toml")
-    if not catalog.is_file():
-        raise SystemExit("Run this from the repository root; no gradle/libs.versions.toml here.")
-    text, current = read(catalog, r'^evilo-plugin-sdk = "(.*)"$')
+    if not PROPERTIES.is_file():
+        raise SystemExit("Run this from the repository root; no project.properties here.")
+    text = PROPERTIES.read_text()
+    current = read(text, NAME)
+    code = read(text, CODE)
     updated = bump(current, args.position)
-    print(f"library {current} -> {updated} (raise {args.position})")
+
+    print(f"{current} -> {updated} (raise {args.position}, versionCode {int(code) + 1})")
     if args.dry_run:
-        return
-    text = re.sub(r'^evilo-plugin-sdk = ".*"$', f'evilo-plugin-sdk = "{updated}"', text, count=1, flags=re.MULTILINE)
-    catalog.write_text(text)
-    print(f"Updated {catalog}. Commit it, then tag library-v{updated}.")
+        return 0
+    text = re.sub(rf"^{NAME}=.*$", f"{NAME}={updated}", text, count=1, flags=re.MULTILINE)
+    text = re.sub(rf"^{CODE}=.*$", f"{CODE}={int(code) + 1}", text, count=1, flags=re.MULTILINE)
+    PROPERTIES.write_text(text)
+    print("Updated project.properties.")
+    return 0
 
 
 if __name__ == "__main__":

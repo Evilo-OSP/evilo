@@ -31,6 +31,10 @@ providers.gradleProperty("wasmline.localPath").orNull?.let { includeBuild(it) }
 
 dependencyResolutionManagement {
     repositories {
+        // The plugin SDK is published from its own repository. Until a release is on
+        // Maven Central, `publishToMavenLocal` there is the only way to resolve it, so
+        // the local repository is consulted for that group alone.
+        mavenLocal { content { includeGroup("io.github.crowforkotlin.evilo") } }
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")
@@ -43,7 +47,6 @@ dependencyResolutionManagement {
 }
 
 include(
-    ":evilo-library",
     ":evilo-core",
     ":evilo-app",
     ":evilo-android",

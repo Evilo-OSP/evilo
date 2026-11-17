@@ -2,18 +2,21 @@
 
 ## Module ownership
 
-The application has exactly three shared modules. Features are packages, not
-additional Gradle projects:
+The application has two shared modules plus one external SDK artifact. Features
+are packages, not additional Gradle projects:
 
 | Module | Responsibilities | Project dependency |
 | --- | --- | --- |
 | `evilo-app` | Compose pages, MD3 theme/font, Coil, resources, app composition, platform storage bindings | `evilo-core` |
-| `evilo-core` | MVI stores, catalogs, HTTP policy/transport, persistence contracts, signed loading, media sessions | `evilo-library` |
-| `evilo-library` | Portable media models, JSON envelopes, synchronous Wasmline services, legacy manga adapter | None |
+| `evilo-core` | MVI stores, catalogs, HTTP policy/transport, persistence contracts, signed loading, media sessions | `evilo-library` artifact |
+
+The `evilo-library` artifact (portable media models, JSON envelopes, synchronous
+Wasmline services, legacy manga adapter) is built and versioned in the separate
+[`evilo-library`](https://github.com/crowforkotlin/evilo-library) repository and
+resolved from Maven Central. It targets WASI in addition to the platforms below.
 
 `evilo-android`, `evilo-desktop`, `evilo-web`, and the Xcode-only `evilo-ios` are
-launchers. Shared modules retain Android, JVM, iOS ARM64/simulator ARM64, JS, and
-Wasm JS; only `evilo-library` also targets WASI. Host storage, HTTP clients, and
+launchers. Shared modules retain Android, JVM, iOS ARM64/simulator ARM64, JS, and Wasm JS. Host storage, HTTP clients, and
 Compose must not enter guest modules. Real providers belong in independent
 `evilo-plugin-<provider>` repositories.
 
@@ -234,7 +237,8 @@ publisher's retained values. Erasing values keeps an empty persistent namespace
 with an incremented revision, so stale operations cannot reuse an old
 revision. Runtime disposal waits for operations but never reads DataStore or
 permits guest KV callbacks. The protocol comments live in
-`evilo-library/src/commonMain/kotlin/crow/evilo/plugin/api/PluginProtocol.kt`.
+`PluginProtocol.kt` in the [`evilo-library`](https://github.com/crowforkotlin/evilo-library)
+repository.
 
 ## Room3 catalog records
 

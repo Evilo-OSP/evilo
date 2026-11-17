@@ -21,7 +21,6 @@ sqlite = "2.7.1"
 sqlite-wasm = "3.54.1-build1"
 wasmline = "1.0.0-beta1"
 evilo-plugin-sdk = "1.0.0"
-mavenPublish = "0.37.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -62,7 +61,7 @@ gradle-kotlin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.
 gradle-compose = { module = "org.jetbrains.compose:compose-gradle-plugin", version.ref = "composeMultiplatform" }
 gradle-composeCompiler = { module = "org.jetbrains.kotlin:compose-compiler-gradle-plugin", version.ref = "kotlin" }
 wasmline = { module = "io.github.crowforkotlin:wasmline", version.ref = "wasmline" }
-gradle-maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "mavenPublish" }
+evilo-library = { module = "io.github.crowforkotlin.evilo:evilo-library", version.ref = "evilo-plugin-sdk" }
 wasmline-loader = { module = "io.github.crowforkotlin:wasmline-loader", version.ref = "wasmline" }
 wasmline-engine-pulley = { module = "io.github.crowforkotlin:wasmline-engine-pulley", version.ref = "wasmline" }
 
@@ -76,4 +75,3 @@ kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", versio
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 room3 = { id = "androidx.room3", version.ref = "room3" }
 wasmline = { id = "io.github.crowforkotlin.wasmline", version.ref = "wasmline" }
-mavenPublish = { id = "com.vanniktech.maven.publish", version.ref = "mavenPublish" }

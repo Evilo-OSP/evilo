@@ -11,18 +11,21 @@ resources, build configuration, or documentation. `evilo-plugin-template` is an
 independent, provider-neutral Gradle build. A plugin is never a project dependency
 of the application.
 
-The SDK is maintained once in `evilo-library`, configured for publication as
-`io.github.crowforkotlin.evilo:evilo-library`. Plugins pin an SDK release. An explicit
-local composite may substitute this same module during development; no protocol
-source is copied into the template. A third repository is unnecessary until the
-SDK needs independent ownership or release management.
-The configured SDK version is `1.0.0`; these changes do not establish remote
-artifact availability. Use the explicit local composite before publication.
+The SDK has independent ownership and release management: it is built and
+versioned in [`evilo-library`](https://github.com/crowforkotlin/evilo-library) and
+published as `io.github.crowforkotlin.evilo:evilo-library`. This repository pins
+that release in `gradle/libs.versions.toml` (`evilo-plugin-sdk`) and consumes the
+artifact. Plugins pin the same coordinate; no protocol source is copied into the
+template. A local composite (`-Pevilo.sdkPath=../evilo-library`) substitutes the
+SDK during development.
+The configured SDK version is `1.0.0`; a configured publication is not proof of
+availability, so publish it locally or wait for the Central release.
 
-The host has three shared modules: `evilo-app` contains every Compose page,
-theme/resource, Coil loader, and image header limits; `evilo-core` contains catalogs, network,
-storage, loading, sessions, and controllers; `evilo-library` contains portable
-models and the plugin/host protocol. Dependencies flow app to core to library.
+The host has two shared Gradle modules plus the SDK artifact: `evilo-app` contains
+every Compose page, theme/resource, Coil loader, and image header limits;
+`evilo-core` contains catalogs, network, storage, loading, sessions, and
+controllers; the `evilo-library` artifact contains portable models and the
+plugin/host protocol. Dependencies flow app to core to library.
 Sessions return permission-checked image bytes rather than Compose types.
 The app injects its build-supplied official public verification key into the core
 session factory. Reviewed third-party releases use only their declared key for

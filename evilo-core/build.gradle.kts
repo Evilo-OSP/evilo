@@ -9,7 +9,7 @@ plugins {
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            api(projects.eviloLibrary)
+            api(libs.evilo.library)
             api(libs.wasmline.loader)
             api(libs.ktor.client.core)
             api(libs.kotlinx.coroutines.core)

@@ -7,8 +7,7 @@ module naming used by Wasmline, with explicit Gradle settings includes.
 
 | Module | Direct project dependencies | Convention |
 | --- | --- | --- |
-| `evilo-library` | None | `evilo.multiplatform` |
-| `evilo-core` | `evilo-library` | `evilo.multiplatform` |
+| `evilo-core` | `evilo-library` artifact | `evilo.multiplatform` |
 | `evilo-app` | `evilo-core` | `evilo.compose` |
 | `evilo-android` | Shared app | `evilo.android.application` |
 | `evilo-desktop` | Shared app | `evilo.desktop.application` |
@@ -55,7 +54,7 @@ catalogs, so target/dependency configuration waits for the actual `libs` catalog
 Do not duplicate dependency versions in scripts.
 
 Shared modules retain Android KMP library/host-test, JVM/JDK, iOS device/simulator
-ARM64, JS, and Wasm JS targets with the default hierarchy. Only `evilo-library` adds
+ARM64, JS, and Wasm JS targets with the default hierarchy. Only the SDK artifact adds
 Wasm WASI. Providers declare JVM/WASI portable libraries and a WASI guest binary.
 Keep host HTTP, Compose, storage backends, and native runtime engines out of guests.
 
@@ -98,9 +97,11 @@ provided. See `docs/application-architecture.md` for API and worker setup detail
 - Publisher signing: reviewed per-release `signing` and exact `manifestSha256`, not an app-wide trust list.
 - Runtime permissions: reviewed per-release origins/methods/headers/storage and HTTP consent.
 
-The SDK publication is `io.github.crowforkotlin.evilo:evilo-library`, versioned once in the catalog.
+The SDK publication is `io.github.crowforkotlin.evilo:evilo-library`, built and versioned in
+the separate `evilo-library` repository; this repository pins it in the catalog as
+`evilo-plugin-sdk` and consumes the artifact.
 A configured publication is not proof of availability. Templates may explicitly
-substitute `-Pevilo.sdkPath=../evilo`; never copy models/service interfaces.
+substitute `-Pevilo.sdkPath=../evilo-library`; never copy models/service interfaces.
 
 Register modules explicitly and use type-safe `projects.evilo*` accessors. Apply
 serialization for serialized models, and the Wasmline compiler plugin where typed
