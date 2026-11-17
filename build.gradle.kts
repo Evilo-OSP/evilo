@@ -8,4 +8,5 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.room3) apply false
     alias(libs.plugins.wasmline) apply false
+    alias(libs.plugins.mavenPublish) apply false
 }
