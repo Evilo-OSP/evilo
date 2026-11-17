@@ -258,7 +258,10 @@ History, Updates, or Downloads items merely to fill four navigation slots.
   Popup focus and Back/Escape interception stay disabled. Source-check errors,
   image failures, permission blocks, and empty-content Retry states remain persistent;
   hiding a notification must not turn a failed request into a successful empty result.
-  Apply IME padding only to the notification anchor, not to the page behind it.
+  Apply IME padding once around the home layout and hide compact navigation while
+  the keyboard is visible. Notifications follow the resized content anchor without
+  adding their own IME padding. Compact navigation paints its own system-bar inset;
+  a sibling spacer preserves that inset when navigation is hidden.
 - `EviloMotion` defines 280 ms page/spatial transitions, 180 ms component/effect
   transitions, 120 ms exit fades, and 360 ms slow Material spatial transitions. Use the
   same cubic easing `(0.2, 0, 0, 1)` instead of per-page springs and durations.
@@ -268,6 +271,9 @@ History, Updates, or Downloads items merely to fill four navigation slots.
   fade. Keep full state snapshots and saveable page keys while outgoing content
   finishes its transition; it must not receive pointer, keyboard, or Back actions.
   Clip page slides to the content bounds rather than drawing over navigation.
+  Keep the home focus target outside animated page copies. Navigation clears text
+  focus and hides the keyboard before requesting this stable target. Search fields
+  on outgoing pages are disabled immediately, not after the exit animation.
 - Predictive Back uses the Flutter 3.44.2 default Android shared-element page
   geometry used by the Kira reference: the complete page including its app bar
   stays opaque during drag, scales from 1 to 0.90, shifts horizontally by
@@ -292,8 +298,11 @@ History, Updates, or Downloads items merely to fill four navigation slots.
   actions, progress visibility, selection colors, and changing permission/footer
   sizes use shared component specs. Progress indicators overlay the content edge,
   rather than inserting a row that moves the page. Do not add decorative entrance
-  motion to every row or badge. Compose specs respect a supplied motion-duration
-  scale; the HTML loading spinner stops when the browser requests reduced motion.
+  motion to every row or badge. Plugin installation/opening uses the detail footer
+  or plugin-loading page for progress and phase labels; suppress the global progress
+  bar during these operations, even if a source refresh is also running.
+  Compose specs respect a supplied motion-duration scale; the HTML loading spinner
+  stops when the browser requests reduced motion.
 
 These are implementation rules, not a claim that every platform has been built
 or visually inspected. Changes to the design system do not implement library,

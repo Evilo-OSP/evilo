@@ -16,10 +16,13 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -76,6 +79,8 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
@@ -129,6 +134,9 @@ private fun PluginHomeScreen(state: PluginHomeState, images: EviloImages, host: 
     val active = state.connection.active?.takeIf { page is HomePage.PluginBrowser && it.installationKey == page.key }
     val backEnabled = page != null || state.overlay != null
     val focus = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val savedPages = rememberSaveableStateHolder()
     val backTransition = rememberEviloBackTransition(state)
     val previous = if (page != null && state.overlay == null) state.copy(pages = state.pages.dropLast(1),
@@ -142,7 +150,13 @@ private fun PluginHomeScreen(state: PluginHomeState, images: EviloImages, host: 
     val installedMessage = stringResource(Res.string.plugin_installed_notice)
     val browseAction = stringResource(Res.string.plugin_browse)
     val searchLabels = browseSearchLabels()
-    LaunchedEffect(page, active) { if (active == null) focus.requestFocus() }
+    LaunchedEffect(homePageKey(state), active) {
+        if (active == null) {
+            focusManager.clearFocus(force = true)
+            keyboard?.hide()
+            focus.requestFocus()
+        }
+    }
     LaunchedEffect(searchLabels) { dispatch(PluginHomeIntent.SetSearchLabels(searchLabels)) }
     LaunchedEffect(error, state.actionError, state.connection.error, state.notice) {
         homeToastId?.let { toasts.dismiss(it, notify = false) }
@@ -160,18 +174,20 @@ private fun PluginHomeScreen(state: PluginHomeState, images: EviloImages, host: 
     }
     EviloPredictiveBackHandler(backEnabled, backTransition, state, previous,
         navigationKey = state.pages to state.overlay, onBack = { dispatch(PluginHomeIntent.Back) })
-    EviloPageTransition(state, contentKey = ::homePageKey, depth = { it.pages.size }, label = "home-page", backState = backTransition) { displayed ->
+    // One stable focus target avoids requesting focus through both animated page copies.
+    EviloPageTransition(state, contentKey = ::homePageKey, depth = { it.pages.size },
+        modifier = Modifier.onPreviewKeyEvent {
+            if (!backTransition.previewing && backEnabled && active == null && it.key == Key.Escape && it.type == KeyEventType.KeyUp) {
+                dispatch(PluginHomeIntent.Back)
+                true
+            } else false
+        }.focusRequester(focus).focusable(), label = "home-page", backState = backTransition) { displayed ->
     val state = displayed
     val page = displayed.page
     val active = displayed.connection.active?.takeIf { page is HomePage.PluginBrowser && it.installationKey == page.key }
-    BoxWithConstraints(Modifier.fillMaxSize().eviloTransitionInput(!backTransition.previewing).onPreviewKeyEvent {
-        if (backEnabled && active == null && it.key == Key.Escape && it.type == KeyEventType.KeyUp) {
-            dispatch(PluginHomeIntent.Back)
-            true
-        } else false
-    }.focusRequester(focus).focusable()) {
+    BoxWithConstraints(Modifier.fillMaxSize().eviloTransitionInput(!backTransition.previewing)) {
         val expanded = maxWidth >= EviloLayout.RailBreakpoint
-        Row(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxSize().imePadding()) {
             AnimatedVisibility(expanded && page !is HomePage.PluginBrowser,
                 modifier = Modifier.eviloTransitionInput(expanded && page !is HomePage.PluginBrowser),
                 enter = fadeIn(EviloMotion.componentSpec()) + expandHorizontally(EviloMotion.spatialSpec(), expandFrom = Alignment.Start),
@@ -189,8 +205,10 @@ private fun PluginHomeScreen(state: PluginHomeState, images: EviloImages, host: 
                     }
                 },
                 bottomBar = {
-                    Box(Modifier.fillMaxWidth().windowInsetsPadding(NavigationBarDefaults.windowInsets)) {
-                        EviloBarTransition(!expanded && page == null, alignment = Alignment.Bottom) {
+                    Box(Modifier.fillMaxWidth()) {
+                        // Reserve hidden-bar insets without consuming the NavigationBar's painted padding.
+                        Spacer(Modifier.fillMaxWidth().windowInsetsPadding(NavigationBarDefaults.windowInsets))
+                        EviloBarTransition(!expanded && page == null && !imeVisible, alignment = Alignment.Bottom) {
                             CompactHomeNavigation(state.destination, state.catalog.selectedKind,
                                 { dispatch(PluginHomeIntent.Navigate(it)) }, { dispatch(PluginHomeIntent.ShowContentKinds) })
                         }
@@ -245,9 +263,9 @@ private fun PluginHomeScreen(state: PluginHomeState, images: EviloImages, host: 
                                 }
                             }
                         }
-                    EviloProgressIndicator(active == null && (state.changing || state.catalog.refreshing),
+                    EviloProgressIndicator(active == null && !state.connection.busy && (state.changing || state.catalog.refreshing),
                         Modifier.align(Alignment.TopCenter).widthIn(max = EviloLayout.ContentMaxWidth).fillMaxWidth())
-                    Box(Modifier.fillMaxSize().imePadding()) { EviloToastHost(toasts, expanded) }
+                    Box(Modifier.fillMaxSize()) { EviloToastHost(toasts, expanded) }
                 }
             }
         }

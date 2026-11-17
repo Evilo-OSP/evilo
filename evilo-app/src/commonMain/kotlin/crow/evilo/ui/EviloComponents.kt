@@ -46,11 +46,12 @@ internal fun EviloSearchField(
 ) {
     val colors = MaterialTheme.colorScheme
     val focus = LocalFocusManager.current
+    val inputEnabled = enabled && LocalEviloPageActive.current
     TextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier,
-        enabled = enabled,
+        enabled = inputEnabled,
         singleLine = true,
         shape = CircleShape,
         textStyle = MaterialTheme.typography.bodyMedium,
@@ -60,7 +61,7 @@ internal fun EviloSearchField(
             AnimatedVisibility(value.isNotEmpty(),
                 enter = fadeIn(EviloMotion.componentSpec()) + scaleIn(EviloMotion.componentSpec(), initialScale = 0.92f),
                 exit = fadeOut(EviloMotion.exitSpec()) + scaleOut(EviloMotion.exitSpec(), targetScale = 0.92f)) {
-                IconButton(onClick = { onValueChange("") }, enabled = enabled && value.isNotEmpty()) {
+                IconButton(onClick = { onValueChange("") }, enabled = inputEnabled && value.isNotEmpty()) {
                     Icon(EviloIcons.Close, stringResource(Res.string.home_clear_search))
                 }
             }
