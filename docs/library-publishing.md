@@ -19,18 +19,32 @@ whole release is ~1.1 MiB / 43 files, or ~4.5 MiB / 172 files once Central adds
 
 ## Versioning
 
-The version comes from one place: `evilo-plugin-sdk` in
-`gradle/libs.versions.toml`. `evilo-library/build.gradle.kts` reads it and the
-release workflow refuses to publish when the git tag disagrees with it.
+The SDK version is `evilo-plugin-sdk` in `gradle/libs.versions.toml`; the app
+version is `EVILO_VERSION_NAME` in `project.properties`. They are two values but
+one release train:
 
-Bump it for every published release; never republish an existing version. This
-coordinate is a public API commitment — the plugin protocol and the model classes
-are consumed by third-party repositories. Additive changes may take a minor bump
-before `1.0.0`; a breaking change to `MangaSourceService`, `EviloPluginService`,
-or the serialized envelopes needs an explicit decision and, after `1.0.0`, a
-major bump.
+| Rule | Enforced by |
+| --- | --- |
+| `evilo-plugin-sdk` shares `major.minor` with `EVILO_VERSION_NAME` | `verify` job, before anything is built |
+| The SDK patch (`z`) advances on its own when only the SDK changes | Convention, not CI |
+| An app `major.minor` bump resets the SDK patch to `0` | Same invariant: `1.1.0` requires SDK `1.1.x` |
+| A `v*` tag must equal `v<EVILO_VERSION_NAME>` | `verify` job |
 
-Current version: `0.0.1`.
+So the SDK ships as part of an app release rather than on its own timeline. A
+tag publishes the SDK only when that patch version is absent from Maven Central;
+an app-only release reuses the published SDK, and `publish` stops after `verify`
+instead of failing.
+
+This coordinate is a public API commitment — plugin repositories compile against
+it. The protocol is designed for additive change: new optional fields and
+capabilities appear without breaking existing plugins, so most releases raise
+`z`. Reserve a `minor` bump for protocol additions that plugins must opt into,
+and a `major` bump for a change that breaks `MangaSourceService`,
+`EviloPluginService`, or the serialized envelopes. A `major`/`minor` bump forces
+every plugin repository to update in lockstep, which is why it needs an explicit
+decision.
+
+Current versions: app `1.0.0`, SDK `1.0.0`.
 
 ## Local verification
 
@@ -63,18 +77,20 @@ Publish:
 
 ```sh
 git switch main
-# bump evilo-plugin-sdk in gradle/libs.versions.toml, then commit
-git tag library-v0.0.1
-git push origin library-v0.0.1
+# bump evilo-plugin-sdk (and EVILO_VERSION_NAME when major.minor changes), then commit
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
-`.github/workflows/publish-library.yml` runs on `library-v*` tags:
+`.github/workflows/publish-library.yml` runs on `v*` tags, the same namespace as an app release:
 
-1. `verify` resolves the catalog version, fails when the tag disagrees, fails when
-   that version already exists on Maven Central, runs `:evilo-library:jvmTest`,
-   stages the publication into `~/.m2`, rejects the release when it exceeds the
-   footprint gate, and asserts that each POM carries license/SCM metadata and
-   that sources and javadoc JARs exist.
+1. `verify` resolves both versions, fails unless they share `major.minor` and the
+   tag matches the app version, then checks Maven Central for that SDK version.
+   When it is already published (an app-only release), the remaining steps and
+   the `publish` job are skipped rather than failed. Otherwise it runs
+   `:evilo-library:jvmTest`, stages the publication into `~/.m2`, rejects the
+   release when it exceeds the footprint gate, and asserts that each POM carries
+   license/SCM metadata and that sources and javadoc JARs exist.
 2. `publish` uploads with `:evilo-library:publishToMavenCentral`. The plugin is
    configured with `automaticRelease = true`, so a validated deployment is
    released without a manual portal step.
@@ -91,7 +107,7 @@ Central processing is asynchronous. Check the coordinates before depending on
 them:
 
 ```sh
-curl -sI https://repo1.maven.org/maven2/io/github/crowforkotlin/evilo/evilo-library/0.0.1/evilo-library-0.0.1.pom | head -1
+curl -sI https://repo1.maven.org/maven2/io/github/crowforkotlin/evilo/evilo-library/1.0.0/evilo-library-1.0.0.pom | head -1
 ```
 
 Then, in every plugin repository:
@@ -110,8 +126,9 @@ variables, so nothing else needs changing.
 
 | Symptom | Cause |
 | --- | --- |
-| `Tag library-vX.Y.Z does not match library-vA.B.C` | Tag and catalog version disagree. |
-| `evilo-library X.Y.Z is already on Maven Central` | Version reuse; bump instead. |
+| `Tag vA.B.C does not match app version vX.Y.Z` | The tag and `EVILO_VERSION_NAME` disagree. |
+| `evilo-plugin-sdk X.Y.Z must share major.minor with EVILO_VERSION_NAME` | Only one of the two versions was bumped. |
+| `evilo-library X.Y.Z is already on Maven Central` | Not an error: the release is skipped. Bump the SDK patch to publish a new one. |
 | `Configure MAVEN_CENTRAL_*` | Missing repository secret. |
 | `Missing sources for …` / `Missing javadoc for …` | Publication configuration was changed away from `JavadocJar.Empty`/`SourcesJar.Sources`. |
 | `Missing license metadata` / `Missing scm metadata` | `pom { }` block edited or removed; Central rejects incomplete POMs. |

@@ -6,7 +6,7 @@ name: Publish evilo library
 # republish an existing version.
 on:
   push:
-    tags: ['library-v*']
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       dry_run:
@@ -22,10 +22,13 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-24.04
+    outputs:
+      already: ${{ steps.published.outputs.already }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -33,33 +36,44 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Resolve version from the version catalog
+      - name: Resolve the SDK version and check the version invariant
         id: version
         run: |
-          version=$(sed -n 's/^evilo-plugin-sdk = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid evilo-plugin-sdk version: '$version'"; exit 1; }
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          sdk=$(sed -n 's/^evilo-plugin-sdk = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
+          app=$(sed -n 's/^EVILO_VERSION_NAME=\(.*\)$/\1/p' project.properties)
+          [[ "$sdk" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid evilo-plugin-sdk: '$sdk'"; exit 1; }
+          [[ "$app" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid EVILO_VERSION_NAME: '$app'"; exit 1; }
+          # The SDK ships as part of an app release: same major.minor, independent patch.
+          [[ "${sdk%.*}" == "${app%.*}" ]] || {
+            echo "evilo-plugin-sdk $sdk must share major.minor with EVILO_VERSION_NAME $app."
+            echo "Bump both in the same commit; the SDK patch may advance on its own."
+            exit 1; }
+          echo "version=$sdk" >> "$GITHUB_OUTPUT"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            [[ "$GITHUB_REF_NAME" == "library-v$version" ]] || {
-              echo "Tag $GITHUB_REF_NAME does not match library-v$version"; exit 1; }
+            [[ "$GITHUB_REF_NAME" == "v$app" ]] || {
+              echo "Tag $GITHUB_REF_NAME does not match app version v$app."; exit 1; }
           fi
-          echo "Publishing version $version"
-      - name: Reject an already published version
-        env:
-          GH_TOKEN: ${{ github.token }}
+          echo "SDK $sdk for app $app"
+      - name: Check whether this SDK version is already published
+        id: published
         run: |
           version='${{ steps.version.outputs.version }}'
           status=$(curl -s -o /dev/null -w '%{http_code}' \
             "https://repo1.maven.org/maven2/io/github/crowforkotlin/evilo/evilo-library/$version/evilo-library-$version.pom")
           if [[ "$status" == "200" ]]; then
-            echo "evilo-library $version is already on Maven Central; publish a new version instead."
-            exit 1
+            echo "evilo-library $version is already on Maven Central; skipping publication."
+            echo "already=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Run library tests
+        if: ${{ steps.published.outputs.already != 'true' }}
         # jvmTest covers the portable model and protocol tests. The js/wasmJs suites run in a
         # browser, and the WASI test binary cannot be instantiated by current Node releases.
         run: ./gradlew :evilo-library:jvmTest --no-daemon --no-configuration-cache
       - name: Stage the publication locally
+        if: ${{ steps.published.outputs.already != 'true' }}
         run: |
           ./gradlew :evilo-library:publishToMavenLocal \
             --no-daemon --no-configuration-cache --no-build-cache
@@ -71,6 +85,7 @@ jobs:
             grep -q '<scm>' "$pom" || { echo "Missing scm metadata in $pom"; exit 1; }
           done
       - name: Check the publication footprint
+        if: ${{ steps.published.outputs.already != 'true' }}
         # Central's free tier meters monthly bytes and file counts for the whole
         # organisation. Fail early instead of discovering the limit during upload.
         run: |
@@ -89,6 +104,7 @@ jobs:
           (( total < 8 * 1024 * 1024 )) || { echo "Publication exceeds 8 MiB; trim targets or artifacts."; exit 1; }
           (( files < 60 )) || { echo "Publication exceeds 60 files; trim targets or artifacts."; exit 1; }
       - name: Verify the published sources and javadoc artifacts
+        if: ${{ steps.published.outputs.already != 'true' }}
         run: |
           version='${{ steps.version.outputs.version }}'
           for artifact in evilo-library evilo-library-jvm evilo-library-wasm-wasi; do
@@ -98,7 +114,9 @@ jobs:
           done
   publish:
     needs: verify
-    if: ${{ !inputs.dry_run }}
+    # A tag publishes the SDK only when that patch version is new; an app-only bump
+    # reuses the published SDK and stops after verify.
+    if: ${{ !inputs.dry_run && needs.verify.outputs.already != 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

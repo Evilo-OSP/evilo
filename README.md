@@ -262,7 +262,7 @@ execute upstream tasks and requires that checkout's toolchain/artifacts.
 
 ## SDK, signing, and storage
 
-The SDK coordinate is `io.github.crowforkotlin.evilo:evilo-library:0.0.1`,
+The SDK coordinate is `io.github.crowforkotlin.evilo:evilo-library:1.0.0`,
 published to Maven Central by `.github/workflows/publish-library.yml`. Templates
 consume this library rather than copying models/protocols; see
 [docs/library-publishing.md](docs/library-publishing.md) for the release
