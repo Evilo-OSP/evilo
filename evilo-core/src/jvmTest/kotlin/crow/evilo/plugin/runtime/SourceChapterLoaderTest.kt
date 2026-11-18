@@ -50,7 +50,9 @@ class SourceChapterLoaderTest {
             },
         )
         assertEquals(listOf("first", "second"), result.map { it.id })
-        assertEquals(listOf("context-discovery", "context-first", "context-second"), parsedContexts)
+        // `parsedContexts` holds nullable contexts, so the expected side must state
+        // its element type; otherwise assertEquals cannot bind `T`.
+        assertEquals(listOf<String?>("context-discovery", "context-first", "context-second"), parsedContexts)
         assertEquals(listOf("discovery", "first", "second"), requests.map { it.url.substringAfterLast('/') })
     }
 
