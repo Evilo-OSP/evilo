@@ -2,31 +2,26 @@
 
 ## Repository ownership
 
-`evilo` owns the application, the protocol SDK, catalog format, official-key
-configuration, per-release publisher approval, network approvals, persistence,
-and Wasmline loading. It contains no source-site
+`evilo` owns the application, catalog format, official-key configuration,
+per-release publisher approval, persistence, and Wasmline loading. It contains no source-site
 implementation or guest binary. Source-site implementations and release files
 belong in independent `evilo-plugin-<provider>` repositories, not host code,
 resources, build configuration, or documentation. `evilo-plugin-template` is an
 independent, provider-neutral Gradle build. A plugin is never a project dependency
 of the application.
 
-The SDK has independent ownership and release management: it is built and
-versioned in [`evilo-library`](https://github.com/crowforkotlin/evilo-library) and
-published as `io.github.crowforkotlin.evilo:evilo-library`. This repository pins
-that release in `gradle/libs.versions.toml` (`evilo-plugin-sdk`) and consumes the
-artifact. Plugins pin the same coordinate; no protocol source is copied into the
-template. A local composite (`-Pevilo.useLocalSdk`) substitutes the
-SDK during development.
-The configured SDK version is `1.0.0`; a configured publication is not proof of
-availability, so publish it locally or wait for the Central release.
+The protocol SDK is published as `io.github.crowforkotlin.evilo:evilo-library`.
+This repository pins that release in `gradle/libs.versions.toml`
+(`evilo-plugin-sdk`) and consumes the artifact. Plugins pin the same coordinate;
+no protocol source is copied into a provider repository. A local composite
+(`-Pevilo.useLocalSdk`) substitutes the SDK during development.
 
 The host has two shared Gradle modules plus the SDK artifact: `evilo-app` contains
 every Compose page, theme/resource, Coil loader, and image header limits;
 `evilo-core` contains catalogs, network, storage, loading, sessions, and
 controllers; the `evilo-library` artifact contains portable models and the
 plugin/host protocol. Dependencies flow app to core to library.
-Sessions return permission-checked image bytes rather than Compose types.
+Sessions return host-fetched image bytes rather than Compose types.
 The app injects its build-supplied official public verification key into the core
 session factory. Reviewed third-party releases use only their declared key for
 that release. Existing model/service packages and JSON envelopes remain unchanged.
@@ -81,8 +76,8 @@ their own private key and declare `signing` (`algorithm: Ed25519`, `keyId`, raw
 32-byte lowercase `publicKeyHex`) and `manifestSha256` on each release. Signing
 may inherit from the plugin, but the exact signed-manifest digest is required per
 release. Neither catalog inclusion nor subscription grants trust. The install
-review displays the exact version, publisher fingerprint, and requested permissions;
-third-party execution requires explicit acceptance of all three. The fingerprint
+review displays the exact version and publisher fingerprint; third-party
+execution requires explicit acceptance of both. The fingerprint
 is the lowercase SHA-256 of the raw public-key bytes, not the key ID or hexadecimal
 text. Compare it through an independent publisher channel; initial acceptance
 cannot establish a real-world identity.
@@ -95,8 +90,8 @@ official and third-party packages; declared keys alone do not verify a signature
 Publishers keep private keys outside host/plugin repositories, resources, catalogs,
 and source archives. Independent authors never need the official private key.
 
-Installation records preserve the approved release's signing declaration, permissions,
-and SHA-256 of the exact verified signed manifest bytes. Installed loads use that
+Installation records preserve the approved release's signing declaration and
+SHA-256 of the exact verified signed manifest bytes. Installed loads use that
 recorded key and digest, not a replacement from a refreshed catalog. Different
 remote bytes are rejected even if signed by the same publisher; changed code needs
 a new version/code and review. Legacy installations lacking a pinned digest are
@@ -104,9 +99,10 @@ blocked until explicit review/reinstall; an unchanged release keeps its original
 timestamp. A changed publisher key requires uninstalling all existing same-ID
 copies before installation, including disabled-source copies.
 
-A valid signature identifies a key, not harmless code. Catalog metadata cannot
-grant network/storage access. Every installation requires explicit release
-permission consent; every new third-party version requires publisher review.
+A valid signature identifies a key, not harmless code. Installing a plugin is
+the authorization decision for the network and storage it uses. Every
+installation requires explicit release approval; every new third-party version
+requires publisher review.
 
 ## Catalogs and releases
 
@@ -120,18 +116,18 @@ optional icon, source repository, releases, compatibility, and forced updates.
 version/date summaries before `CatalogParser` validates the full typed metadata.
 Authors may be strings and dates may use `YYYY-MM-DD`.
 
-Each release inherits omitted kinds, languages, source URL, permissions, and
-protocol; explicit overrides replace whole fields. Every release supplies a
+Each release inherits omitted kinds, languages, source URL, and protocol;
+explicit overrides replace whole fields. Every release supplies a
 `.wlm` URL, immutable source revision, actual source archive URL/hash, version/code,
 and publication date. A source URL may inherit the repository link or override
 it with an immutable snapshot. A link ending in a Wasm binary or manifest is not
 accepted as a source-code link. Changing defaults can change older inherited
-release metadata; approved installation permissions are never silently replaced.
+release metadata; approved installation records are never silently replaced.
 
 The bundled catalog starts empty until an actual signed package and its
 matching source release are published. No guessed release URL is presented as an
-installable package. The template exports a full catalog entry together
-with a source archive when the publisher supplies real release URLs.
+installable package. A provider repository's exporter writes a full catalog entry
+together with a source archive when the publisher supplies real release URLs.
 `docs/plugin-catalog.md` documents independent hosting and the compact format.
 The signed manifest binds the runtime descriptor, source revision, and
 archive hash. An identity-checking network wrapper compares those declarations
@@ -158,14 +154,13 @@ installations, and scoped floors, but preserves plugin data. An uninstall erases
 plugin data only after its last installation across subscriptions is removed.
 
 HTTPS is preferred. A user may explicitly approve an HTTP catalog/package origin
-after a cleartext warning. This does not disable signature verification, permit
-redirects, or grant a plugin arbitrary URLs. Web mixed-content and CORS policies
-still apply. Android/iOS cleartext platform settings are paired with explicit
-host URL policies, not unrestricted plugin networking.
-Dynamic user-approved HTTP origins cannot be enumerated in static Android network
-security or iOS ATS domain lists, so platform cleartext support is enabled and
-the host applies the per-source/per-release runtime restrictions. This broadens
-platform transport capability, not the plugin's signed permissions.
+after a cleartext warning. This does not disable signature verification or
+permit redirects. Web mixed-content and CORS policies still apply.
+Per-subscription cleartext consent cannot be enumerated in static Android network
+security or iOS ATS domain lists, so platform cleartext support is enabled and the
+host applies the subscription and request restrictions at runtime. Plugin requests
+otherwise reach any HTTPS host they name; installing the plugin is the
+authorization decision.
 
 ## Resource limits and remaining risks
 
@@ -196,6 +191,12 @@ retry attempts bypass memory-cache reads while retaining approval checks; blank
 URLs have no request. Typed HTTP/policy/format/limit/session failures drive compact
 image states and redacted diagnostics without displaying original exception text.
 Platform decoder failures after header validation are format errors, not HTTP errors.
+
+`PluginNetworkPolicy.mediaRequest` supplies a generic `User-Agent: evilo` when a
+plugin approves the `user-agent` media header and the request omits it. This also
+applies to covers, whose `MediaItem` only carries a URL. Explicit image headers
+are preserved and undergo the same approval and duplicate-header checks; API
+headers and credentials are never copied into image requests.
 
 The current upstream `WasmlineConfig` does not expose guest fuel, execution-time,
 or linear-memory budgets. HTTP/coroutine timeouts cannot interrupt a synchronous
@@ -273,12 +274,12 @@ same-ID release until every installed copy of that ID is removed, even if its
 source is disabled. Matching catalog IDs/names/icons do not grant identity.
 Actions retain `sourceId:pluginId`, saved defaults/oldest installations determine
 source choice, and unavailable choices require explicit selection without automatic
-fallback. Floors and permissions are not merged; NSFW uses the strictest known
+fallback. Floors are not merged; NSFW uses the strictest known
 classification among installed copies. Details expose source declarations and
 per-source uninstall, rather than deleting all same-ID copies through one button.
 
 `HomePage` owns returnable settings/source/detail/browser routes; one `HomeOverlay`
-owns selectors and permission/removal/uninstall confirmations. Approval rechecks
+owns selectors and approval/removal/uninstall confirmations. Approval rechecks
 the exact reviewed release. Install-only closes its verification session and
 retains its initiating page; install-and-browse reuses that session. Opening still
 reacquires the remote signed manifest and is not an offline-loading guarantee.

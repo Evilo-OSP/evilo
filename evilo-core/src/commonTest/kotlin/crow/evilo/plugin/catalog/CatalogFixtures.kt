@@ -49,7 +49,7 @@ internal fun pluginCatalog(plugins: List<CatalogPlugin> = listOf(catalogPlugin()
 )
 
 internal fun CatalogPlugin.descriptor(release: PluginRelease) = PluginDescriptor(
-    id, name, release.version, release.versionCode, release.kinds, release.languages, release.protocol, release.permissions,
+    id, name, release.version, release.versionCode, release.kinds, release.languages,
 )
 
 internal fun compactCatalogJson(plugin: CatalogPlugin = catalogPlugin()): JsonObject {
@@ -58,7 +58,7 @@ internal fun compactCatalogJson(plugin: CatalogPlugin = catalogPlugin()): JsonOb
     )
     val releases = plugin.availableVersions.map { release ->
         JsonObject(PluginJson.encodeToJsonElement(release).jsonObject - setOf(
-            "kinds", "languages", "sourceUrl", "permissions", "protocol", "usable", "minimumHostVersionCode", "maximumHostVersionCode",
+            "kinds", "languages", "sourceUrl", "usable", "minimumHostVersionCode", "maximumHostVersionCode",
         ))
     }
     val entry = JsonObject(fields + mapOf(
@@ -66,8 +66,6 @@ internal fun compactCatalogJson(plugin: CatalogPlugin = catalogPlugin()): JsonOb
             if (author.url == null) JsonPrimitive(author.name) else PluginJson.encodeToJsonElement(author)
         }),
         "availableVersions" to JsonArray(releases),
-        "permissions" to PluginJson.encodeToJsonElement(plugin.latestRelease.permissions),
-        "protocol" to PluginJson.encodeToJsonElement(plugin.latestRelease.protocol),
     ))
     return JsonObject(mapOf("name" to JsonPrimitive("Test catalog"), "plugins" to JsonArray(listOf(entry))))
 }

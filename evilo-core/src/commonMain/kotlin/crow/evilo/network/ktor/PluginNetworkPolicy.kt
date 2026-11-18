@@ -1,7 +1,5 @@
 package crow.evilo.network.ktor
 
-import crow.evilo.plugin.api.HttpAccess
-import crow.evilo.plugin.api.PluginPermissions
 import crow.evilo.plugin.api.SourceHttpClient
 import crow.evilo.plugin.api.SourceMetadata
 import crow.evilo.plugin.api.SourceRequest
@@ -42,60 +40,30 @@ object PluginUrlPolicy {
     fun origin(url: Url): String = "${url.protocol.name}://${url.host.lowercase()}:${url.port}"
 }
 
-fun validatePluginPermissions(permissions: PluginPermissions, allowHttp: Boolean) {
-    listOf(permissions.api, permissions.media).forEach { access ->
-        require(access.origins.size <= 32 && access.pathPrefixes.size in 1..32 && access.headers.size <= 32) {
-            "Plugin network approvals exceed their limits."
-        }
-        access.origins.forEach { origin ->
-            val url = PluginUrlPolicy.check(origin, allowHttp)
-            require(url.encodedPath in listOf("", "/") && url.encodedQuery.isEmpty() && '*' !in url.host) {
-                "Network origins must be exact origins without paths, queries, or wildcards."
-            }
-        }
-        require(access.pathPrefixes.all { prefix ->
-            prefix.startsWith('/') && prefix.none { it <= ' ' || it in "\\%?#" } &&
-                prefix.split('/').none { it in listOf(".", "..") }
-        }) { "Invalid approved path prefix." }
-        require(access.methods.isNotEmpty() && access.methods.all { it in APPROVED_METHODS }) { "Unsupported HTTP methods." }
-        require(access.headers.all { HEADER_NAME.matches(it) && it == it.lowercase() && it !in FORBIDDEN_HEADERS }) {
-            "Invalid or forbidden HTTP header approval."
-        }
-    }
-    require(permissions.media.methods == setOf("GET")) { "Media downloads only support GET." }
-}
-
+/**
+ * Sanitizes the requests a plugin sends through the host. The host does not track which
+ * servers a plugin may reach: installing a plugin is the authorization. What remains here
+ * keeps a request syntactically valid and strips headers that describe the host itself.
+ */
 class PluginNetworkPolicy(
     val pluginId: String,
-    val permissions: PluginPermissions,
     private val allowHttp: Boolean,
 ) {
-    init {
-        validatePluginPermissions(permissions, allowHttp)
-    }
-
-    fun apiRequest(request: SourceRequest): SourceRequest = approve(request, permissions.api)
-    fun mediaRequest(url: String, headers: Map<String, String>): SourceRequest =
-        approve(SourceRequest(url = url, headers = headers), permissions.media)
-
-    private fun approve(request: SourceRequest, access: HttpAccess): SourceRequest {
+    fun approve(request: SourceRequest): SourceRequest {
         val url = PluginUrlPolicy.check(request.url, allowHttp)
-        val approvedOrigins = access.origins.map { PluginUrlPolicy.origin(PluginUrlPolicy.check(it, allowHttp)) }.toSet()
-        requireNetwork(PluginUrlPolicy.origin(url) in approvedOrigins && access.pathPrefixes.any { prefix ->
-            url.encodedPath == prefix || url.encodedPath.startsWith(if (prefix.endsWith('/')) prefix else "$prefix/")
-        }, NetworkPolicyViolation.ORIGIN_OR_PATH_NOT_APPROVED) { "Network URL is not approved for plugin $pluginId: ${url.host}." }
-        requireNetwork(request.method in access.methods, NetworkPolicyViolation.METHOD_NOT_APPROVED) { "HTTP method ${request.method} is not approved." }
         val body = request.body
-        requireNetwork(body == null || (request.method in setOf("POST", "PUT", "PATCH") &&
-            body.encodeToByteArray().size <= 64 * 1024), NetworkPolicyViolation.REQUEST_BODY) { "Invalid or oversized HTTP request body." }
-        requireNetwork(request.headers.size <= 32, NetworkPolicyViolation.HEADERS_NOT_APPROVED) { "Too many HTTP headers." }
+        requireNetwork(body == null || body.encodeToByteArray().size <= MAX_REQUEST_BODY_BYTES,
+            NetworkPolicyViolation.REQUEST_BODY) { "Oversized HTTP request body." }
+        requireNetwork(request.headers.size <= MAX_REQUEST_HEADERS, NetworkPolicyViolation.HEADERS_NOT_APPROVED) {
+            "Too many HTTP headers."
+        }
         val headers = mutableMapOf<String, String>()
         request.headers.forEach { (name, value) ->
             val normalized = name.lowercase()
             val diagnosticHeader = normalized.takeIf { it.length <= 64 && HEADER_NAME.matches(it) }
-            requireNetwork(normalized in access.headers && normalized !in headers && normalized !in FORBIDDEN_HEADERS,
+            requireNetwork(normalized !in headers && normalized !in FORBIDDEN_HEADERS,
                 NetworkPolicyViolation.HEADERS_NOT_APPROVED, rejectedHeader = diagnosticHeader) {
-                "HTTP header '$name' is not approved."
+                "HTTP header '$name' is not allowed."
             }
             requireNetwork(value.length <= 4096 && value.none { it < ' ' || it == '\u007f' },
                 NetworkPolicyViolation.HEADERS_NOT_APPROVED, rejectedHeader = diagnosticHeader) { "Invalid HTTP header value." }
@@ -110,25 +78,37 @@ class PluginHttpClient(
     private val policy: PluginNetworkPolicy,
 ) : SourceHttpClient {
     override suspend fun execute(source: SourceMetadata, request: SourceRequest): SourceResponse {
-        require(source.id == policy.pluginId) { "HTTP permission belongs to another plugin." }
-        val approved = policy.apiRequest(request)
-        val response = transport.fetch(approved, 2 * 1024 * 1024)
+        require(source.id == policy.pluginId) { "HTTP requests belong to another plugin." }
+        val approved = policy.approve(request)
+        val response = transport.fetch(approved, MAX_API_RESPONSE_BYTES)
         return SourceResponse(approved.url, response.statusCode, response.headers,
             response.bytes.decodeToString(throwOnInvalidSequence = true))
     }
 
     suspend fun imageBytes(url: String, headers: Map<String, String>): ByteArray {
-        val approved = policy.mediaRequest(url, headers)
-        val response = transport.fetch(approved, 16 * 1024 * 1024)
+        // Default the user agent so a plugin that omits it still gets media the CDN serves.
+        val withAgent = if (headers.keys.none { it.equals("user-agent", ignoreCase = true) }) {
+            mapOf("User-Agent" to "evilo") + headers
+        } else {
+            headers
+        }
+        val approved = policy.approve(SourceRequest(url = url, headers = withAgent))
+        val response = transport.fetch(approved, MAX_MEDIA_RESPONSE_BYTES)
         if (response.statusCode !in 200..299) throw HttpStatusException(response.statusCode)
         return response.bytes
     }
 
-    fun approvedStreamUrl(url: String, headers: Map<String, String>): String = policy.mediaRequest(url, headers).url
-    fun approvedImageRequest(url: String, headers: Map<String, String>): SourceRequest = policy.mediaRequest(url, headers)
+    fun approvedStreamUrl(url: String, headers: Map<String, String>): String =
+        policy.approve(SourceRequest(url = url, headers = headers)).url
+
+    fun approvedImageRequest(url: String, headers: Map<String, String>): SourceRequest =
+        policy.approve(SourceRequest(url = url, headers = headers))
 }
 
-private val APPROVED_METHODS = setOf("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE")
+private const val MAX_API_RESPONSE_BYTES = 2 * 1024 * 1024
+private const val MAX_MEDIA_RESPONSE_BYTES = 16 * 1024 * 1024
+private const val MAX_REQUEST_BODY_BYTES = 64 * 1024
+private const val MAX_REQUEST_HEADERS = 32
 private val HEADER_NAME = Regex("[a-z0-9!#$%&'*+.^_`|~-]+")
 private val FORBIDDEN_HEADERS = setOf(
     "cookie", "cookie2", "host", "connection", "content-length", "transfer-encoding", "upgrade", "proxy-authorization",

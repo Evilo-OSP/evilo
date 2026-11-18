@@ -5,9 +5,7 @@ package crow.evilo.plugin.catalog
 import androidx.datastore.core.DataStore
 import crow.evilo.plugin.api.HOST_MEDIA_CAPABILITY
 import crow.evilo.plugin.api.HostDescriptor
-import crow.evilo.plugin.api.HttpAccess
 import crow.evilo.plugin.api.PluginJson
-import crow.evilo.plugin.api.PluginPermissions
 import crow.evilo.network.ktor.BoundedHttpTransport
 import crow.evilo.storage.EviloPreferences
 import crow.evilo.storage.EviloPreferencesRepository
@@ -241,8 +239,8 @@ class PluginCatalogRepositoryTest {
     }
 
     @Test
-    fun changingCommonPermissionsDoesNotSilentlyChangeAnApprovedInstallation() = runTest {
-        val first = catalogRelease().copy(permissions = PluginPermissions(api = HttpAccess(origins = setOf("https://first.example.com"))))
+    fun changingTheManifestDoesNotSilentlyChangeAnApprovedInstallation() = runTest {
+        val first = catalogRelease()
         val fixture = RepositoryFixture(pluginCatalog(emptyList()))
         fixture.customJson = compactCatalogJson(catalogPlugin(listOf(first))).toString()
         try {
@@ -251,11 +249,11 @@ class PluginCatalogRepositoryTest {
             val listing = fixture.repository.state.value.listings.single()
             val release = assertNotNull(fixture.repository.recommendedRelease(listing))
             fixture.repository.recordInstallation(listing, release, listing.plugin.descriptor(release), "d".repeat(64))
-            val changed = first.copy(permissions = PluginPermissions(api = HttpAccess(origins = setOf("https://changed.example.com"))))
+            val changed = first.copy(manifestSha256 = "a".repeat(64))
             fixture.customJson = compactCatalogJson(catalogPlugin(listOf(changed))).toString()
             fixture.repository.refresh()
             val installation = fixture.repository.state.value.installed.single()
-            assertEquals(release.permissions, installation.release.permissions)
+            assertEquals(release.manifestSha256, installation.release.manifestSha256)
             assertTrue(fixture.repository.installationBlockReason(installation).orEmpty().contains("metadata changed"))
         } finally {
             fixture.transport.close()
@@ -656,7 +654,9 @@ class PluginCatalogRepositoryTest {
                 else -> error("Unexpected test request: ${request.url}")
             }
             respond(json, statusByUrl[url] ?: status)
-        }) { followRedirects = false })
+        }) { followRedirects = false },
+            // `runTest` drives a virtual clock, so the watchdog would fire before the engine resumes.
+            requestTimeoutMillis = 0)
         val repository = PluginCatalogRepository(records, preferences, transport, host)
         suspend fun initialize() { repository.initialize(PluginJson.encodeToString(bundled)) }
         suspend fun writePluginValue(pluginId: String, value: String) {

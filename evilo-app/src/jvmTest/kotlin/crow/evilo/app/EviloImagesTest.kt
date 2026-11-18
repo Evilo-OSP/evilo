@@ -250,7 +250,11 @@ class EviloImagesTest {
     }
 
     private class ImageFixture(status: HttpStatusCode = HttpStatusCode.OK) {
-        val transport = BoundedHttpTransport(HttpClient(MockEngine { respond("Image test response", status) }) { followRedirects = false })
+        val transport = BoundedHttpTransport(HttpClient(MockEngine {
+            respond("Image test response", status)
+        }) { followRedirects = false },
+            // `runTest` drives a virtual clock, so the watchdog would fire before the engine resumes.
+            requestTimeoutMillis = 0)
         val images = EviloImages(PlatformContext.INSTANCE, transport)
         suspend fun intercept(request: ImageRequest, proceed: suspend (ImageRequest) -> ImageResult): ImageResult =
             images.loader.components.interceptors.first().intercept(TestChain(request, proceed))

@@ -4,7 +4,6 @@ import crow.evilo.model.MediaKind
 import crow.evilo.plugin.api.HostDescriptor
 import crow.evilo.plugin.api.PluginDescriptor
 import crow.evilo.plugin.api.PluginJson
-import crow.evilo.plugin.api.incompatibility
 import crow.evilo.network.ktor.BoundedHttpTransport
 import crow.evilo.network.ktor.PluginUrlPolicy
 import crow.evilo.storage.CatalogWrite
@@ -329,7 +328,7 @@ class PluginCatalogRepository(
             (release.maximumHostVersionCode != null && host.appVersionCode > release.maximumHostVersionCode)) {
             return PluginBlock(PluginBlockCode.HOST_INCOMPATIBLE, "This plugin release does not support application ${host.appVersion}.")
         }
-        return release.protocol.incompatibility(host)?.let { PluginBlock(PluginBlockCode.PROTOCOL_INCOMPATIBLE, it) }
+        return null
     }
 
     fun recommendedRelease(listing: CatalogListing): PluginRelease? =
@@ -357,7 +356,6 @@ class PluginCatalogRepository(
         require(releaseBlockReason(listing, release) == null) { releaseBlockReason(listing, release).orEmpty() }
         val current = requireNotNull(state.value.listingByKey[listing.key])
         require(verified.id == current.plugin.id && verified.version == release.version && verified.versionCode == release.versionCode &&
-            verified.permissions == release.permissions && verified.protocol == release.protocol &&
             verified.kinds == release.kinds && verified.languages == release.languages) {
             "The signed plugin descriptor does not match its catalog release."
         }

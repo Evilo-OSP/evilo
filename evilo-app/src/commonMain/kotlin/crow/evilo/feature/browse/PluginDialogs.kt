@@ -31,7 +31,6 @@ import crow.evilo.plugin.catalog.fingerprint
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import crow.evilo.app.resources.*
-import crow.evilo.plugin.api.HttpAccess
 import crow.evilo.plugin.catalog.PluginRelease
 import crow.evilo.ui.EviloIcons
 import crow.evilo.ui.EviloLayout
@@ -69,10 +68,6 @@ internal fun PluginPermissionDialog(entry: PluginEntry, release: PluginRelease, 
                     }
                     Text(stringResource(Res.string.plugin_safety), style = MaterialTheme.typography.bodyMedium)
                     if (entry.allowHttp) Text(stringResource(Res.string.plugin_http_warning), color = MaterialTheme.colorScheme.error)
-                    Text(stringResource(Res.string.plugin_permissions), style = MaterialTheme.typography.titleMedium)
-                    NetworkPermissionText(stringResource(Res.string.plugin_api_origins), release.permissions.api)
-                    NetworkPermissionText(stringResource(Res.string.plugin_media_origins), release.permissions.media)
-                    if (release.permissions.storage) Text(stringResource(Res.string.plugin_storage), style = MaterialTheme.typography.bodySmall)
                     if (sharedPluginData) Text(stringResource(Res.string.plugin_shared_data), style = MaterialTheme.typography.bodySmall)
                 }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -131,23 +126,6 @@ internal fun PluginSourceLinks(sourceUrl: String, release: PluginRelease?) {
                     Text(stringResource(Res.string.plugin_source_hash, it.sourceArchiveSha256), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun NetworkPermissionText(title: String, access: HttpAccess) {
-    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().padding(EviloSpacing.Large), verticalArrangement = Arrangement.spacedBy(EviloSpacing.Small)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            if (access.origins.isEmpty()) Text(stringResource(Res.string.plugin_no_network), style = MaterialTheme.typography.bodySmall)
-            else {
-                Text(access.origins.sorted().joinToString("\n"), style = MaterialTheme.typography.bodySmall)
-                Text(stringResource(Res.string.plugin_network_methods, access.methods.sorted().joinToString()), style = MaterialTheme.typography.bodySmall)
-                Text(stringResource(Res.string.plugin_network_paths, access.pathPrefixes.sorted().joinToString()), style = MaterialTheme.typography.bodySmall)
-                if (access.headers.isNotEmpty()) Text(stringResource(Res.string.plugin_network_headers, access.headers.sorted().joinToString()),
-                    style = MaterialTheme.typography.bodySmall)
             }
         }
     }

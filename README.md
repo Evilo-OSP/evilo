@@ -4,19 +4,18 @@ evilo is a Kotlin Multiplatform media-reader application with one Compose
 Material Design 3 UI for Android, desktop, browsers, and iOS. Providers are signed
 Wasmline plugins loaded from JSON catalogs, not app dependencies or APK extensions.
 
-## Repositories
+## Scope
 
-| Repository | Responsibility |
-| --- | --- |
-| `https://github.com/crowforkotlin/evilo` | Host app, maintained plugin SDK, bundled JSON catalog |
-| `https://github.com/crowforkotlin/evilo-plugin-templatea` | Provider-neutral multi-module template |
+This repository is the host application: the Compose UI, plugin loading and
+verification, catalogs, storage, and network policy. Provider code, signed
+packages, and signing keys never live here. The bundled
+`plugin-repository/plugin.json` is a subscription source, not a place to develop
+a provider.
 
-The template's local directory remains `../evilo-plugin-template`; its remote
-spelling is preserved. Third-party repositories use `evilo-plugin-<provider>`
-and start from the template. The app and template contain no real provider
-implementation. Keep host code, build configuration, resources, and documentation
-provider-neutral; third-party implementations and their release files stay in
-independent repositories.
+To publish a provider, use the plugin development template as the starting
+layout: `https://github.com/crowforkotlin/evilo-plugin-template`. Each provider keeps
+its own repository (`evilo-plugin-<provider>`), its own signing key, and its own
+catalog URL.
 
 ## Modules
 
@@ -86,8 +85,8 @@ is not a claim of successful dependency resolution or platform compilation.
 `App()` owns an isolated Koin application. Shared MVI stores expose immutable
 `StateFlow` state and accept typed `dispatch(intent)` calls. Compose pages do not
 construct repositories, HTTP clients, or platform stores. The app has one Ktor
-transport and one Coil loader; plugin image requests use custom permission-aware
-Coil components, not unrestricted URL loading. See
+transport and one Coil loader; plugin image requests go through the host's
+validating Coil components, not unrestricted URL loading. See
 [`docs/application-architecture.md`](docs/application-architecture.md) for entry
 points, store usage, disposal, storage semantics, and browser setup.
 
@@ -114,13 +113,13 @@ grouped by signed plugin ID while every action retains `sourceId:pluginId`.
 The default source is an explicit saved choice or the oldest installation, never
 the mirror with the highest version. An unavailable default requires explicit
 source selection; search and single-source filtering do not change the default.
-Version floors and approved permissions remain source-specific. Same-ID copies
+Version floors and approved release metadata remain source-specific. Same-ID copies
 must use the same verified publisher identity; another publisher is blocked until
 all installed copies of that ID are uninstalled, including disabled copies.
 Third-party key/value data is isolated by public-key fingerprint and plugin ID.
 The strictest known NSFW classification among installed sources applies to all copies.
 
-Installation requires explicit permission review. Install stays on the management
+Installation requires explicit release review. Install stays on the management
 page and closes the verification session; Install and browse reuses that verified
 session for the works catalog. Opening still fetches and verifies a signed remote
 manifest, but content-addressed modules can reuse Wasmline's hash-checked artifact
@@ -142,8 +141,8 @@ positions remain attached to their page keys. Android explicitly enables system
 predictive Back; the root home page does not intercept back-to-home. Gesture
 rendering/device behavior has not been exercised for this change.
 
-Images distinguish missing URLs, loading, HTTP/network failure, permission denial,
-format failure, size limits, and disconnected sessions. Covers use compact states;
+Images distinguish missing URLs, loading, HTTP/network failure, format failure,
+size limits, and disconnected sessions. Covers use compact states;
 reader pages retain their page labels and individual retry/details actions.
 Diagnostics omit original exception text, request header values, credentials,
 paths, queries, and fragments. Debug image details additionally identify the typed
@@ -162,11 +161,11 @@ runtime creation may share one measured phase.
 
 Users subscribe to catalog URLs rather than entering Ed25519 keys, key IDs, or
 individual WLM URLs. Every installation requires a compatible release, matching
-signed source provenance, a valid Ed25519 signature, and explicit permission approval.
+signed source provenance, a valid Ed25519 signature, and explicit release approval.
 Official releases use the public verification key supplied when building the app.
 Third-party releases declare their own signing identity and exact signed-manifest
-SHA-256; users explicitly approve the exact version, publisher fingerprint, and
-permissions before execution. Declared keys apply only to that release, not an
+SHA-256; users explicitly approve the exact version and publisher fingerprint before
+execution. Declared keys apply only to that release, not an
 application-wide trust list. Catalog inclusion is not certification, and a valid
 signature does not prove safety.
 
@@ -193,12 +192,12 @@ addresses.
 3. Open the source's catalog and select a supported content type. NSFW entries
    remain hidden unless enabled in More -> Settings -> Browse and content.
 4. Open a plugin's details, select a compatible release, and review its actual
-   source links, signer, and permissions. For a third-party release, compare the
-   displayed publisher fingerprint with an independent publisher channel and
-   explicitly accept that exact version/fingerprint/permissions. Install keeps
+   source links and signer. For a third-party release, compare the displayed
+   publisher fingerprint with an independent publisher channel and explicitly
+   accept that exact version and fingerprint. Install keeps
    this page; Install and browse enters works after signature/digest verification.
 5. Tap its installed Browse row to enter works directly. The separate Info button
-   manages versions, updates, permissions, source copies, and per-source uninstall.
+   manages versions, updates, source copies, and per-source uninstall.
    No WLM URL, key ID, or Ed25519 key is entered by the user.
 
 The built-in source is already subscribed and can be disabled. An empty
@@ -222,26 +221,26 @@ smallest valid source is:
 ```
 
 For a nonempty source, write each plugin's stable ID, name, authors, introduction,
-kinds, languages, source repository, and common permissions once. Releases inherit the
-common fields unless overridden. Author names may be strings, icons are optional,
+kinds, languages, and source repository once. Releases inherit the common fields
+unless overridden. Author names may be strings, icons are optional,
 dates accept `YYYY-MM-DD`, and current version/summary dates are derived. There
 is no `$schema` association or separate schema file to maintain. See
 [`docs/plugin-catalog.md`](docs/plugin-catalog.md) for the compact example and
-updating old releases without changing their permissions.
+for retiring an old release without rewriting its recorded metadata.
 
-The template's release exporter supplies a usable `plugins.json`, actual source
-archive/hash, signed `manifest.wlm`, and content-addressed `artifacts/` directory.
+A provider repository's release exporter supplies a usable `catalog.json`, actual
+source archive/hash, signed `manifest.wlm`, and content-addressed `artifacts/` directory.
 Publish that output directly or copy its release metadata into your own catalog;
 do not invent hashes or source commits. Third-party publishers sign each release
 with their own private key and declare `signing` (Ed25519 `keyId` and 32-byte
 `publicKeyHex`) plus `manifestSha256`, the SHA-256 of the exact signed manifest
 bytes. Signing may inherit from the plugin, but every release needs its own digest.
 Neither a subscription nor the declaration grants trust: users approve each new
-version, fingerprint, and permissions before execution. A changed key is a publisher
+version and fingerprint before execution. A changed key is a publisher
 change, not a transparent update; same-ID installations must be uninstalled first.
 Unsigned packages remain rejected. All downloads must be served without redirects.
-Keep provider code, artifacts, and private keys outside evilo. See the template
-README for export commands.
+Keep provider code, artifacts, and private keys outside evilo. Your provider
+repository's own documentation covers export commands.
 
 ## Configuration
 
@@ -263,18 +262,16 @@ execute upstream tasks and requires that checkout's toolchain/artifacts.
 ## SDK, signing, and storage
 
 The SDK coordinate is `io.github.crowforkotlin.evilo:evilo-library`, published to
-Maven Central from its own repository,
-[`evilo-library`](https://github.com/crowforkotlin/evilo-library). Its version is
-independent of `EVILO_VERSION_NAME`: it is the protocol contract that plugin
-repositories compile against, so it moves only when that module changes. This
-repository consumes the published coordinate; templates consume the same one and
-never copy models or protocols. Until a version is published, publish it locally
-from the SDK repository or use `-Pevilo.useLocalSdk` in a plugin
-repository. Consolidation preserves the serialized protocol and service packages;
+Maven Central. Its version is independent of `EVILO_VERSION_NAME`: it is the
+protocol contract that plugin repositories compile against, so it moves only when
+the protocol changes. This repository consumes the published coordinate; provider
+repositories consume the same one and never copy models or protocols. Until a
+version is published, install it locally or use `-Pevilo.useLocalSdk` in a
+provider repository. Consolidation preserves the serialized protocol and service packages;
 it does not change the bridge ABI.
 
 `evilo-core` owns plugin connections and reader state without depending on Compose.
-Sessions return permission-checked image bytes; `evilo-app` validates image headers
+Sessions return host-fetched image bytes; `evilo-app` validates image headers
 before Coil decodes them. The app supplies its build-configured official public
 key to `PluginSessionFactory`. `releaseVerificationKeys()` selects either that
 legacy official lookup or the reviewed release's declared publisher key; it never
@@ -317,8 +314,8 @@ a private GitHub Actions Secret for signing, never through committed source. Ind
 official private key. Legacy releases without `signing` still require an official
 signature; they are not an unsigned-loading fallback.
 
-Installation records retain the reviewed release's signing identity, permissions,
-and verified manifest digest. Every third-party version requires explicit review.
+Installation records retain the reviewed release's signing identity and verified
+manifest digest. Every third-party version requires explicit review.
 A fingerprint is the lowercase SHA-256 of the raw public-key bytes, not of its
 hexadecimal text or key ID; compare it through an independent publisher channel.
 Initial acceptance does not authenticate a real-world identity or certify safety.
@@ -372,7 +369,7 @@ requests. Authorizing an APK build/install does not authorize other targets or t
 | Browser Wasm distribution | `./gradlew :evilo-web:wasmJsBrowserDistribution` |
 | Browser JS distribution | `./gradlew :evilo-web:jsBrowserDistribution` |
 | iOS simulator framework | `./gradlew :evilo-app:linkDebugFrameworkIosSimulatorArm64` on macOS |
-| Protocol/model tests | `./gradlew :jvmTest` in the `evilo-library` repository |
+| Protocol/model tests | `./gradlew :jvmTest` in the plugin SDK repository |
 | Catalog/storage/HTTP/runtime/controller tests | `./gradlew :evilo-core:jvmTest` |
 | Image decoder, request approval, and image-scope tests | `./gradlew :evilo-app:jvmTest` |
 

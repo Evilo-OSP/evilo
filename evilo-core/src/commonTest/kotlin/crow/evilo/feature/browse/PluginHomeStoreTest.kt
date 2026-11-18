@@ -6,8 +6,6 @@ import androidx.datastore.core.DataStore
 import crow.evilo.app.AppPluginController
 import crow.evilo.app.PluginSessionConnector
 import crow.evilo.app.TestPluginSession
-import crow.evilo.plugin.api.HttpAccess
-import crow.evilo.plugin.api.PluginPermissions
 import crow.evilo.plugin.catalog.BUNDLED_SOURCE_ID
 import crow.evilo.plugin.catalog.CatalogPlugin
 import crow.evilo.plugin.catalog.PluginCatalog
@@ -208,7 +206,7 @@ class PluginHomeStoreTest {
     }
 
     @Test
-    fun approvalRejectsTheExactReviewedReleaseAfterItsPermissionsChange() = runTest {
+    fun approvalRejectsTheExactReviewedReleaseAfterItsMetadataChanges() = runTest {
         val fixture = HomeFixture(this)
         try {
             fixture.initialize()
@@ -217,7 +215,7 @@ class PluginHomeStoreTest {
             fixture.openSourceDetail(listing.key)
             fixture.store.dispatch(PluginHomeIntent.ReviewRelease(listing.key, release.versionCode))
             val review = assertIs<HomeOverlay.PermissionReview>(fixture.store.state.value.overlay)
-            val changed = release.copy(permissions = PluginPermissions(media = HttpAccess(origins = setOf("https://images.example.com"))))
+            val changed = release.copy(manifestSha256 = "0".repeat(64))
             fixture.catalogs.bundled = pluginCatalog(listOf(listing.plugin.copy(availableVersions = listOf(changed))))
             fixture.repository.refresh()
             fixture.awaitIdle()

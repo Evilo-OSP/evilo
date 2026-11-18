@@ -4,10 +4,7 @@ import crow.evilo.model.MediaKind
 import crow.evilo.plugin.api.HOST_HTTP_CAPABILITY
 import crow.evilo.plugin.api.HOST_MEDIA_CAPABILITY
 import crow.evilo.plugin.api.HOST_STORAGE_CAPABILITY
-import crow.evilo.plugin.api.HttpAccess
 import crow.evilo.plugin.api.PluginJson
-import crow.evilo.plugin.api.PluginPermissions
-import crow.evilo.plugin.api.ProtocolRequirement
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -32,11 +29,7 @@ class CatalogParserTest {
 
     @Test
     fun compactCatalogInheritsCommonFieldsAndAcceptsStringAuthorsWithoutAnIcon() {
-        val release = catalogRelease().copy(
-            protocol = ProtocolRequirement(requiredCapabilities = setOf(HOST_MEDIA_CAPABILITY, HOST_HTTP_CAPABILITY, HOST_STORAGE_CAPABILITY)),
-            permissions = PluginPermissions(api = HttpAccess(origins = setOf("https://api.example.com")),
-                media = HttpAccess(origins = setOf("https://images.example.com")), storage = true),
-        )
+        val release = catalogRelease()
         val plugin = catalogPlugin(listOf(release))
         val catalog = parser.parse(compactCatalogJson(plugin).toString(), false)
         assertEquals(plugin.copy(iconUrl = "", createdAt = release.publishedAt,
@@ -74,21 +67,14 @@ class CatalogParserTest {
 
     @Test
     fun explicitReleaseOverridesReplaceCommonFieldsWithoutMergingThem() {
-        val first = catalogRelease().copy(permissions = PluginPermissions(api = HttpAccess(origins = setOf("https://old.example.com"))))
-        val second = catalogRelease(2).copy(kinds = setOf(MediaKind.MANGA, MediaKind.NOVEL), languages = listOf("en", "zh"),
-            protocol = ProtocolRequirement(requiredCapabilities = setOf(HOST_MEDIA_CAPABILITY, HOST_HTTP_CAPABILITY, HOST_STORAGE_CAPABILITY)),
-            permissions = PluginPermissions(api = HttpAccess(origins = setOf("https://new.example.com")),
-                media = HttpAccess(origins = setOf("https://images.example.com")), storage = true))
+        val first = catalogRelease()
+        val second = catalogRelease(2).copy(kinds = setOf(MediaKind.MANGA, MediaKind.NOVEL), languages = listOf("en", "zh"))
         val plugin = catalogPlugin(listOf(first, second)).copy(kinds = second.kinds, languages = second.languages)
         val input = compactCatalogJson(plugin).editFirstRelease { release ->
             JsonObject(release + mapOf(
                 "kinds" to PluginJson.encodeToJsonElement(first.kinds),
                 "languages" to PluginJson.encodeToJsonElement(first.languages),
                 "sourceUrl" to JsonPrimitive(first.sourceUrl),
-                "protocol" to JsonObject(mapOf("major" to JsonPrimitive(1))),
-                "permissions" to JsonObject(mapOf("api" to JsonObject(mapOf(
-                    "origins" to PluginJson.encodeToJsonElement(first.permissions.api.origins),
-                )))),
             ))
         }
         val parsed = parser.parse(input.toString(), false).plugins.single()
@@ -117,8 +103,8 @@ class CatalogParserTest {
             assertJsonRejected(input.editPlugin { JsonObject(it + (field to value)) })
         }
         for ((field, value) in listOf("kinds" to JsonArray(emptyList()), "languages" to JsonArray(emptyList()),
-            "sourceUrl" to JsonPrimitive("https://code.example.com/plugin.wasm"), "permissions" to JsonPrimitive("invalid"),
-            "protocol" to JsonNull, "publishedAt" to JsonPrimitive("2026-02-30"),
+            "sourceUrl" to JsonPrimitive("https://code.example.com/plugin.wasm"),
+            "publishedAt" to JsonPrimitive("2026-02-30"),
             "manifestUrl" to JsonPrimitive("https://plugins.example.com/plugin.wasm"),
             "sourceRevision" to JsonPrimitive("main"), "sourceArchiveUrl" to JsonPrimitive("https://plugins.example.com/plugin.wasm"),
             "sourceArchiveSha256" to JsonPrimitive("not-a-hash"))) {
@@ -248,15 +234,6 @@ class CatalogParserTest {
             assertRejectedRelease(publisher.copy(manifestSha256 = digest))
             assertRejectedRelease(legacy.copy(manifestSha256 = digest))
         }
-    }
-
-    @Test
-    fun requiredStorageCapabilityNeedsStoragePermission() {
-        val release = catalogRelease()
-        assertRejectedRelease(release.copy(protocol = release.protocol.copy(requiredCapabilities = setOf(HOST_STORAGE_CAPABILITY))))
-        val permitted = release.copy(protocol = release.protocol.copy(requiredCapabilities = setOf(HOST_STORAGE_CAPABILITY)),
-            permissions = release.permissions.copy(storage = true))
-        assertEquals(permitted, parser.validate(pluginCatalog(listOf(catalogPlugin(listOf(permitted)))), false).plugins.single().latestRelease)
     }
 
     @Test

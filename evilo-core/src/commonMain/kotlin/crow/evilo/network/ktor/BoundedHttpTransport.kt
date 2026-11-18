@@ -40,7 +40,9 @@ class BoundedHttpTransport(
     private val requests = Semaphore(maxConcurrentRequests)
 
     init {
-        require(requestTimeoutMillis > 0) { "The HTTP request timeout must be positive." }
+        // Zero disables the watchdog. Tests that drive a virtual clock pass zero because
+        // the measured time would otherwise jump to the deadline while an engine resumes.
+        require(requestTimeoutMillis >= 0) { "The HTTP request timeout cannot be negative." }
     }
 
     suspend fun fetch(url: String, headers: Map<String, String>, maxBytes: Int): HttpByteResponse {
@@ -71,7 +73,7 @@ class BoundedHttpTransport(
         val requestHeaders = request.headers.toMap()
         var sinkFailure: Throwable? = null
         try {
-            return withTimeoutOrNull(requestTimeoutMillis) {
+            val deadline: suspend () -> HttpStreamResponse = {
                 requests.withPermit {
                     client.prepareRequest(request.url) {
                         method = HttpMethod.parse(request.method)
@@ -100,13 +102,20 @@ class BoundedHttpTransport(
                         )
                     }
                 }
-            } ?: throw HttpTransportTimeoutException(requestTimeoutMillis)
+            }
+            if (requestTimeoutMillis == 0L) return deadline()
+            return withTimeoutOrNull(requestTimeoutMillis) { deadline() }
+                ?: throw HttpTransportTimeoutException(requestTimeoutMillis)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: HttpTransportException) {
             throw failure
         } catch (failure: Exception) {
-            if (failure === sinkFailure) throw failure
+            // Ktor may wrap a failure raised inside the response handler, so compare by
+            // identity through the cause chain before renaming it a network failure.
+            for (candidate in generateSequence<Throwable>(failure) { it.cause }) {
+                if (candidate === sinkFailure) throw candidate
+            }
             throw HttpNetworkException(failure)
         }
     }

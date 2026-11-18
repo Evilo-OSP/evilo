@@ -4,13 +4,11 @@ package crow.evilo.plugin.runtime
 
 import crow.evilo.plugin.api.EviloHostService
 import crow.evilo.plugin.api.EviloPluginService
-import crow.evilo.plugin.api.HOST_STORAGE_CAPABILITY
 import crow.evilo.plugin.api.HostDescriptor
 import crow.evilo.plugin.api.MediaSource
 import crow.evilo.plugin.api.PluginDescriptor
 import crow.evilo.plugin.api.PluginJson
 import crow.evilo.plugin.api.SourceHttpClient
-import crow.evilo.plugin.api.incompatibility
 import crow.evilo.storage.KeyValueStore
 import crow.wasmline.WasmlineLoadResult
 import crow.wasmline.WasmlineExecutionModel
@@ -49,8 +47,7 @@ class WasmlinePluginLoader(
             "Plugin loads require explicit trusted keys and a freshly verified manifest."
         }
         val network = requireNotNull(options.networkClient) { "A policy-approved package network client is required." }
-        val grantedHost = if (expected.permissions.storage) host else host.copy(capabilities = host.capabilities - HOST_STORAGE_CAPABILITY)
-        require(expected.protocol.incompatibility(grantedHost) == null) { expected.protocol.incompatibility(grantedHost).orEmpty() }
+        val grantedHost = host
         val checkedOptions = options.copy(networkClient = ManifestIdentityClient(manifestUrl, network, expected, sourceRevision, sourceArchiveSha256,
             expectedManifestSha256, onManifestChecked))
         val wasmline = when (val result = WasmlineLoader.load(WasmlineSource.RemoteManifestUrl(manifestUrl), checkedOptions)) {
@@ -59,13 +56,12 @@ class WasmlinePluginLoader(
         }
         try {
             onNegotiating()
-            wasmline.bind(EviloHostService::class, PluginHostStorageService(expected.id, grantedHost, store, expected.permissions.storage))
+            wasmline.bind(EviloHostService::class, PluginHostStorageService(expected.id, grantedHost, store))
             val service = wasmline.link<EviloPluginService>()
             val descriptorJson = service.describe()
             require(descriptorJson.encodeToByteArray().size <= WasmlineManifestLimits.DEFAULT_MAX_STRING_BYTES) { "Plugin descriptor is too large." }
             val descriptor = PluginJson.decodeFromString<PluginDescriptor>(descriptorJson)
             requireDescriptorMatch(descriptor, expected)
-            require(descriptor.protocol.incompatibility(grantedHost) == null) { descriptor.protocol.incompatibility(grantedHost).orEmpty() }
             return WasmlineMediaSource(descriptor, service, http, wasmline)
         } catch (failure: Throwable) {
             try {
@@ -128,8 +124,7 @@ internal class ManifestIdentityClient(
 
 private fun requireDescriptorMatch(actual: PluginDescriptor, expected: PluginDescriptor) {
     require(actual.id == expected.id && actual.version == expected.version && actual.versionCode == expected.versionCode &&
-        actual.kinds == expected.kinds && actual.languages == expected.languages && actual.protocol == expected.protocol &&
-        actual.permissions == expected.permissions && actual.name.isNotBlank() && actual.name.length <= 120) {
+        actual.kinds == expected.kinds && actual.languages == expected.languages && actual.name.isNotBlank() && actual.name.length <= 120) {
         "The signed plugin descriptor does not match its selected catalog release."
     }
 }

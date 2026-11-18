@@ -56,9 +56,9 @@ class PluginSessionFactory(
         val callerContext = currentCoroutineContext()
         suspend fun report(phase: PluginLoadPhase) = withContext(callerContext) { onPhase(phase) }
         val expected = PluginDescriptor(plugin.id, plugin.name, release.version, release.versionCode, release.kinds,
-            release.languages, release.protocol, release.permissions)
+            release.languages)
         val packagePolicy = PackageNetworkPolicy(release.manifestUrl, allowHttp)
-        val policy = PluginNetworkPolicy(plugin.id, release.permissions, allowHttp)
+        val policy = PluginNetworkPolicy(plugin.id, allowHttp)
         val store = preferences.pluginSession(plugin.id, publisherStorageKey(plugin.id, release, trustedKeys))
         val verificationKeys = releaseVerificationKeys(release, trustedKeys)
         var manifestDigest: String? = null

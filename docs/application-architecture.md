@@ -101,7 +101,7 @@ Local unsubmitted form text and version selection may remain Compose state.
 - `PluginHomeStore` owns the Browse/More destination, typed `HomePage` return stack,
   local/source search and filtering, display projections/counts, mutation status,
   and one `HomeOverlay`. Sources/settings/details are pages; temporary selectors
-  and permission/source-removal/uninstall confirmations replace one another.
+  and approval/source-removal/uninstall confirmations replace one another.
   Catalog checks have a separate operation scope, so local search and navigation
   remain usable while refresh runs. Returning from Add Source or source selection
   cancels obsolete navigation-producing work, not unrelated preference commits.
@@ -171,10 +171,10 @@ retain an active browser for an invalid installation.
 `BoundedHttpTransport` owns the application Ktor client. Native clients use
 OkHttp on Android/JVM and Darwin on iOS; browser clients use the JS engine.
 Catalog, package, plugin API, and image requests all pass through bounded
-transport and their corresponding URL/permission policies. Requests reject
-redirects and implicit credentials. Signatures are not network authorization.
+transport and their corresponding URL policies. Requests reject redirects and
+implicit credentials. Signing is not network authorization.
 
-`EviloImages` configures Coil with permission-aware request models, a custom
+`EviloImages` configures Coil with validating request models, a custom
 fetcher, and `PluginImageDecoderFactory`. Plugin images call `MediaSourceSession.imageBytes()`; catalog icons call
 the same Ktor transport. Pages do not pass arbitrary URL strings to an automatic
 Coil network component. Service-loader components and disk/weak-reference caching

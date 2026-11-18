@@ -42,7 +42,6 @@ import crow.evilo.app.EviloImages
 import crow.evilo.app.LocalAppDiagnostics
 import crow.evilo.app.resources.*
 import crow.evilo.plugin.catalog.PluginBlockCode
-import crow.evilo.plugin.api.PluginPermissions
 import crow.evilo.feature.reader.ImageFailure
 import crow.evilo.ui.EviloIcons
 import crow.evilo.ui.EviloImageErrorDetails
@@ -121,7 +120,7 @@ internal fun PluginDetailScreen(state: PluginHomeState, entry: PluginEntry, imag
                         }
                         if (entry.openBlock?.code == PluginBlockCode.HOST_INCOMPATIBLE) installed?.let {
                             Text(stringResource(Res.string.plugin_version_requirements, it.release.minimumHostVersionCode,
-                                it.release.maximumHostVersionCode?.toString() ?: "*", it.release.protocol.major, it.release.protocol.minimumMinor),
+                                it.release.maximumHostVersionCode?.toString() ?: "*"),
                                 style = MaterialTheme.typography.bodySmall)
                         }
                         SourceCheckStatus(state, entry.sourceId)
@@ -164,7 +163,7 @@ internal fun PluginDetailScreen(state: PluginHomeState, entry: PluginEntry, imag
                             Text(stringResource(if (option.release == installed?.release) Res.string.plugin_installed_version else Res.string.plugin_version,
                                 option.release.version), style = MaterialTheme.typography.titleSmall)
                             Text(stringResource(Res.string.plugin_version_requirements, option.release.minimumHostVersionCode,
-                                option.release.maximumHostVersionCode?.toString() ?: "*", option.release.protocol.major, option.release.protocol.minimumMinor),
+                                option.release.maximumHostVersionCode?.toString() ?: "*"),
                                 style = MaterialTheme.typography.bodySmall)
                             Text(option.release.kinds.map { mediaKindLabel(it) }.joinToString(" / ") + " | " + option.release.languages.joinToString(),
                                 style = MaterialTheme.typography.bodySmall)
@@ -177,16 +176,6 @@ internal fun PluginDetailScreen(state: PluginHomeState, entry: PluginEntry, imag
             item {
                 EviloSettingsGroup(stringResource(Res.string.plugin_permissions_group)) {
                     Column(Modifier.animateContentSize(EviloMotion.componentSpec()).padding(EviloSpacing.Large), verticalArrangement = Arrangement.spacedBy(EviloSpacing.Medium)) {
-                        installed?.let {
-                            Text(stringResource(Res.string.plugin_approved_permissions, it.release.version), style = MaterialTheme.typography.titleSmall)
-                            ReleasePermissionText(it.release.permissions)
-                        }
-                        if (release != null && (installed == null || release.permissions != installed.release.permissions)) {
-                            Text(stringResource(Res.string.plugin_selected_permissions, release.version), style = MaterialTheme.typography.titleSmall)
-                            ReleasePermissionText(release.permissions)
-                            if (installed != null) Text(stringResource(Res.string.plugin_permissions_changed), style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error)
-                        }
                         Text(stringResource(Res.string.plugin_safety), style = MaterialTheme.typography.bodySmall)
                     }
                 }
@@ -322,13 +311,6 @@ internal fun ChoosePluginSourceScreen(state: PluginHomeState, id: String, images
             }
         }
     }
-}
-
-@Composable
-private fun ReleasePermissionText(permissions: PluginPermissions) {
-    NetworkPermissionText(stringResource(Res.string.plugin_api_origins), permissions.api)
-    NetworkPermissionText(stringResource(Res.string.plugin_media_origins), permissions.media)
-    Text(stringResource(if (permissions.storage) Res.string.plugin_storage else Res.string.plugin_no_storage), style = MaterialTheme.typography.bodySmall)
 }
 
 private fun copyCanOpen(state: PluginHomeState, entry: PluginEntry): Boolean {

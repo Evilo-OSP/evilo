@@ -1,8 +1,6 @@
 package crow.evilo.feature.browse
 
 import crow.evilo.model.MediaKind
-import crow.evilo.plugin.api.HttpAccess
-import crow.evilo.plugin.api.PluginPermissions
 import crow.evilo.plugin.catalog.CatalogListing
 import crow.evilo.plugin.catalog.CatalogPlugin
 import crow.evilo.plugin.catalog.CatalogSnapshot
@@ -133,7 +131,7 @@ class BrowseProjectionTest {
         val mirror = entry("b", catalogPlugin(listOf(release.copy(manifestUrl = "https://mirror.example.com/manifest.wlm",
             sourceArchiveUrl = "https://mirror.example.com/sources.zip"))))
         assertFalse(hasReleaseConflict(listOf(a, mirror)))
-        val changed = release.copy(permissions = PluginPermissions(media = HttpAccess(origins = setOf("https://media.example.com"))))
+        val changed = release.copy(manifestSha256 = "1".repeat(64))
         val conflict = entry("b", catalogPlugin(listOf(changed)))
         assertTrue(hasReleaseConflict(listOf(a, conflict)))
         assertFalse(hasReleaseConflict(listOf(a.copy(listing = conflict.listing?.copy(snapshot = a.listing!!.snapshot)))))

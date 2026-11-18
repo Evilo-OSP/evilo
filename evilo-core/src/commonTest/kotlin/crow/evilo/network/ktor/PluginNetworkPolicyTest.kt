@@ -1,120 +1,96 @@
 package crow.evilo.network.ktor
 
-import crow.evilo.plugin.api.HttpAccess
-import crow.evilo.plugin.api.PluginPermissions
 import crow.evilo.plugin.api.SourceRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class PluginNetworkPolicyTest {
-    private val permissions = PluginPermissions(
-        api = HttpAccess(setOf("https://api.example.com"), setOf("/content/"), setOf("GET", "POST"),
-            setOf("accept", "content-type", "authorization")),
-        media = HttpAccess(setOf("https://images.example.com"), headers = setOf("accept")),
-    )
-    private val policy = PluginNetworkPolicy("test.plugin", permissions, false)
+    private val policy = PluginNetworkPolicy("test.plugin", allowHttp = false)
 
     @Test
-    fun approvedPostKeepsOnlyExplicitlyDeclaredRequestData() {
-        val request = SourceRequest("https://api.example.com/content/search", "POST",
-            mapOf("Content-Type" to "application/json"), "{}")
-        assertEquals(request.copy(headers = mapOf("content-type" to "application/json")), policy.apiRequest(request))
-    }
-
-    @Test
-    fun originPathCredentialsAndMethodsCannotEscapeTheirApprovals() {
+    fun anyHostIsReachable() {
         for (url in listOf(
-            "https://api.example.com.evil.invalid/content/items",
-            "https://api.example.com:8443/content/items",
-            "https://user@api.example.com/content/items",
-            "https://api.example.com/account",
-            "https://api.example.com/content/%252e%252e/account",
-        )) assertFailsWith<IllegalArgumentException> { policy.apiRequest(SourceRequest(url)) }
-        assertFailsWith<IllegalArgumentException> { policy.apiRequest(SourceRequest("https://api.example.com/content/items", "DELETE")) }
+            "https://api.example.com/content/search",
+            "https://anything.invalid/path",
+            "https://a.b.example.org/x?y=1",
+        )) assertEquals(url, policy.approve(SourceRequest(url)).url)
     }
 
     @Test
-    fun mediaDoesNotInheritApiAuthorizationAndHeadersCannotBeDuplicated() {
-        assertFailsWith<IllegalArgumentException> {
-            policy.mediaRequest("https://images.example.com/cover.png", mapOf("authorization" to "test"))
-        }
-        assertFailsWith<IllegalArgumentException> {
-            policy.apiRequest(SourceRequest("https://api.example.com/content/items", headers = mapOf("Accept" to "json", "accept" to "other")))
-        }
-        assertFailsWith<IllegalArgumentException> {
-            policy.apiRequest(SourceRequest("https://api.example.com/content/items", headers = mapOf("accept" to "json\r\nCookie: test")))
+    fun anyMethodIsForwarded() {
+        for (method in listOf("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE")) {
+            val request = SourceRequest("https://api.example.com/content/items", method, body = "{}")
+            assertEquals(method, policy.approve(request).method)
         }
     }
 
     @Test
-    fun requestBodyLimitUsesBytesAndBodylessMethodsRejectPayloads() {
-        assertFailsWith<IllegalArgumentException> {
-            policy.apiRequest(SourceRequest("https://api.example.com/content/items", body = "{}"))
+    fun headersAreLowercasedAndKept() {
+        val request = SourceRequest("https://api.example.com/content/items", headers = mapOf(
+            "Content-Type" to "application/json", "AUTHORIZATION" to "abc",
+        ))
+        assertEquals(
+            mapOf("content-type" to "application/json", "authorization" to "abc"),
+            policy.approve(request).headers,
+        )
+    }
+
+    @Test
+    fun duplicateForbiddenAndMalformedHeadersAreRejected() {
+        assertFailsWith<NetworkPolicyException> {
+            policy.approve(SourceRequest("https://api.example.com/x", headers = mapOf("Accept" to "a", "accept" to "b")))
         }
-        assertFailsWith<IllegalArgumentException> {
-            policy.apiRequest(SourceRequest("https://api.example.com/content/items", "POST", body = "x".repeat(64 * 1024 + 1)))
+        assertFailsWith<NetworkPolicyException> {
+            policy.approve(SourceRequest("https://api.example.com/x", headers = mapOf("host" to "evil.invalid")))
+        }
+        assertFailsWith<NetworkPolicyException> {
+            policy.approve(SourceRequest("https://api.example.com/x", headers = mapOf("accept" to "a\r\nCookie: b")))
         }
     }
 
     @Test
-    fun cleartextAndWildcardOriginsCannotBeImplicitApprovals() {
-        val cleartext = permissions.copy(api = permissions.api.copy(origins = setOf("http://api.example.com")))
-        assertFailsWith<IllegalArgumentException> { PluginNetworkPolicy("test.plugin", cleartext, false) }
-        val approved = PluginNetworkPolicy("test.plugin", cleartext, true)
-        val request = SourceRequest("http://api.example.com/content/items")
-        assertEquals(request, approved.apiRequest(request))
-        assertFailsWith<IllegalArgumentException> {
-            PluginNetworkPolicy("test.plugin", permissions.copy(api = permissions.api.copy(origins = setOf("https://*.example.com"))), false)
+    fun requestBodyIsBoundedInBytes() {
+        assertEquals("{}", policy.approve(SourceRequest("https://api.example.com/x", "POST", body = "{}")).body)
+        assertFailsWith<NetworkPolicyException> {
+            policy.approve(SourceRequest("https://api.example.com/x", "POST", body = "x".repeat(64 * 1024 + 1)))
         }
     }
 
     @Test
-    fun mediaRejectionsExposeTypedViolationsWithoutGrantingApiHeaders() {
-        assertEquals(NetworkPolicyViolation.ORIGIN_OR_PATH_NOT_APPROVED, assertFailsWith<NetworkPolicyException> {
-            policy.mediaRequest("https://other.example.com/cover.png", emptyMap())
-        }.violation)
-        val headerFailure = assertFailsWith<NetworkPolicyException> {
-            policy.mediaRequest("https://images.example.com/cover.png", mapOf("Authorization" to "private"))
-        }
-        assertEquals(NetworkPolicyViolation.HEADERS_NOT_APPROVED, headerFailure.violation)
-        assertEquals("authorization", headerFailure.rejectedHeader)
-        assertEquals(NetworkPolicyViolation.CLEARTEXT_NOT_APPROVED, assertFailsWith<NetworkPolicyException> {
-            policy.mediaRequest("http://images.example.com/cover.png", emptyMap())
-        }.violation)
+    fun cleartextNeedsTheSubscriptionConsent() {
+        assertFailsWith<NetworkPolicyException> { policy.approve(SourceRequest("http://api.example.com/x")) }
+        val permissive = PluginNetworkPolicy("test.plugin", allowHttp = true)
+        assertEquals("http://api.example.com/x",
+            permissive.approve(SourceRequest("http://api.example.com/x")).url.replace(":80", ""))
     }
 
     @Test
-    fun unapprovedImageOriginOrHeadersAreRejectedBeforeAnyHttpRequest() = runTest {
+    fun credentialsTraversalAndNonHttpSchemesAreRejected() {
+        for (url in listOf(
+            "https://user@api.example.com/x",
+            "https://api.example.com/%252e%252e/etc",
+            "ftp://api.example.com/x",
+            "not-a-url",
+        )) assertFailsWith<NetworkPolicyException> { policy.approve(SourceRequest(url)) }
+    }
+
+    @Test
+    fun imageRequestFailureReportsTheStatus(): Unit = runBlocking {
         var requests = 0
-        val client = HttpClient(MockEngine { requests++; respond("unused") })
-        val transport = BoundedHttpTransport(client)
+        val transport = BoundedHttpTransport(HttpClient(MockEngine {
+            requests++
+            respond("denied", HttpStatusCode.Forbidden)
+        }) { followRedirects = false })
         try {
-            val http = PluginHttpClient(transport, policy)
-            assertEquals(NetworkPolicyViolation.ORIGIN_OR_PATH_NOT_APPROVED, assertFailsWith<NetworkPolicyException> {
-                http.imageBytes("https://other.example.com/cover.png", emptyMap())
-            }.violation)
-            val headerFailure = assertFailsWith<NetworkPolicyException> {
-                http.imageBytes("https://images.example.com/cover.png", mapOf("Authorization" to "private"))
-            }
-            assertEquals("authorization", headerFailure.rejectedHeader)
-            assertEquals(0, requests)
-        } finally { transport.close() }
-    }
-
-    @Test
-    fun imageHttpFailuresPreserveTheStatusAndDoNotRepeatRequests() = runTest {
-        var requests = 0
-        val client = HttpClient(MockEngine { requests++; respond("denied", HttpStatusCode.Forbidden) }) { followRedirects = false }
-        val transport = BoundedHttpTransport(client)
-        try {
-            val http = PluginHttpClient(transport, policy)
-            assertEquals(403, assertFailsWith<HttpStatusException> { http.imageBytes("https://images.example.com/cover.png", emptyMap()) }.statusCode)
+            assertEquals(403, assertFailsWith<HttpStatusException> {
+                PluginHttpClient(transport, policy).imageBytes("https://images.example.com/cover.png", emptyMap())
+            }.statusCode)
             assertEquals(1, requests)
         } finally { transport.close() }
     }

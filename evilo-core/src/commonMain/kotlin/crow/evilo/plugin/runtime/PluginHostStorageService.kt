@@ -9,7 +9,6 @@ class PluginHostStorageService(
     pluginId: String,
     private val host: HostDescriptor,
     private val store: KeyValueStore,
-    private val permitted: Boolean,
 ) : EviloHostService {
     private val namespace = "plugin.$pluginId"
 
@@ -40,13 +39,11 @@ class PluginHostStorageService(
     }
 
     override fun listKeys(prefix: String): String {
-        check(permitted) { "Plugin storage permission was not granted." }
         require(prefix.length <= 128 && prefix.none { it < ' ' || it == '\u007f' }) { "Invalid storage key prefix." }
         return PluginJson.encodeToString(store.keys(namespace, prefix).take(host.storageEntryLimit))
     }
 
     private fun approveKey(key: String) {
-        check(permitted) { "Plugin storage permission was not granted." }
         require(key.length in 1..128 && key.none { it < ' ' || it == '\u007f' }) { "Invalid plugin storage key." }
     }
 }

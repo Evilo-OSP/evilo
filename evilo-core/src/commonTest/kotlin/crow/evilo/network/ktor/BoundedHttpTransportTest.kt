@@ -1,6 +1,9 @@
 package crow.evilo.network.ktor
 
+import kotlinx.coroutines.Dispatchers
+
 import crow.evilo.plugin.api.SOURCE_API_VERSION
+import kotlinx.coroutines.runBlocking
 import crow.evilo.plugin.api.SourceMetadata
 import crow.evilo.plugin.api.SourceRequest
 import io.ktor.client.HttpClient
@@ -19,7 +22,7 @@ import kotlin.test.assertSame
 
 class BoundedHttpTransportTest {
     @Test
-    fun responseBodiesAreBoundedEvenWithoutAContentLength() = runTest {
+    fun responseBodiesAreBoundedEvenWithoutAContentLength(): Unit = runBlocking {
         val client = HttpClient(MockEngine { respond("12345") }) { followRedirects = false }
         val transport = BoundedHttpTransport(client)
         try {
@@ -32,7 +35,7 @@ class BoundedHttpTransportTest {
     }
 
     @Test
-    fun redirectsAreRejectedBeforeTheirBodyIsDelivered() = runTest {
+    fun redirectsAreRejectedBeforeTheirBodyIsDelivered(): Unit = runBlocking {
         val client = HttpClient(MockEngine { respond("redirect", HttpStatusCode.Found, headersOf("Location", "https://other.invalid/")) }) {
             followRedirects = false
         }
@@ -49,7 +52,7 @@ class BoundedHttpTransportTest {
     }
 
     @Test
-    fun claimedOversizeResponsesFailBeforeReadingBytes() = runTest {
+    fun claimedOversizeResponsesFailBeforeReadingBytes(): Unit = runBlocking {
         val client = HttpClient(MockEngine { respond("body", headers = headersOf("Content-Length", "1000")) }) {
             followRedirects = false
         }
@@ -62,7 +65,7 @@ class BoundedHttpTransportTest {
     }
 
     @Test
-    fun sourceRequestsDoNotAcquireUnapprovedHeadersOrHosts() = runTest {
+    fun sourceRequestsDoNotAcquireUnapprovedHeadersOrHosts(): Unit = runBlocking {
         var requests = 0
         val client = HttpClient(MockEngine { request ->
             requests++
@@ -86,7 +89,7 @@ class BoundedHttpTransportTest {
     }
 
     @Test
-    fun callerCancellationIsNotConvertedToAnHttpError() = runTest {
+    fun callerCancellationIsNotConvertedToAnHttpError(): Unit = runBlocking {
         val client = HttpClient(MockEngine { throw CancellationException("Cancelled HTTP.") }) { followRedirects = false }
         val transport = BoundedHttpTransport(client)
         try {
@@ -97,7 +100,7 @@ class BoundedHttpTransportTest {
     }
 
     @Test
-    fun redirectsAndByteLimitsKeepTypedStatusInformation() = runTest {
+    fun redirectsAndByteLimitsKeepTypedStatusInformation(): Unit = runBlocking {
         var redirect = true
         val client = HttpClient(MockEngine {
             if (redirect) respond("redirect", HttpStatusCode.Found)
@@ -114,7 +117,7 @@ class BoundedHttpTransportTest {
     }
 
     @Test
-    fun sinkFailuresAreNotRenamedAsNetworkFailures() = runTest {
+    fun sinkFailuresAreNotRenamedAsNetworkFailures(): Unit = runBlocking {
         val client = HttpClient(MockEngine { respond("data") }) { followRedirects = false }
         val transport = BoundedHttpTransport(client)
         val failure = IllegalStateException("Artifact storage failed.")

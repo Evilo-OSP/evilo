@@ -16,8 +16,8 @@ class PluginHostStorageServiceTest {
     fun pluginsCannotReadHostValuesOrAnotherPluginsNamespace() {
         val store = MemoryKeyValueStore()
         store.write("host.plugins", "setting", "host")
-        val one = PluginHostStorageService("one", host, store, true)
-        val two = PluginHostStorageService("two", host, store, true)
+        val one = PluginHostStorageService("one", host, store)
+        val two = PluginHostStorageService("two", host, store)
         one.writeValue("a", "12")
         assertNull(two.readValue("a"))
         assertNull(one.readValue("setting"))
@@ -25,17 +25,8 @@ class PluginHostStorageServiceTest {
     }
 
     @Test
-    fun missingConsentBlocksEveryStorageOperation() {
-        val service = PluginHostStorageService("one", host, MemoryKeyValueStore(), false)
-        assertFailsWith<IllegalStateException> { service.readValue("a") }
-        assertFailsWith<IllegalStateException> { service.writeValue("a", "1") }
-        assertFailsWith<IllegalStateException> { service.removeValue("a") }
-        assertFailsWith<IllegalStateException> { service.listKeys("") }
-    }
-
-    @Test
     fun rejectedQuotaChangesDoNotReplaceExistingValues() {
-        val service = PluginHostStorageService("one", host, MemoryKeyValueStore(), true)
+        val service = PluginHostStorageService("one", host, MemoryKeyValueStore())
         service.writeValue("a", "12")
         service.writeValue("b", "12")
         assertFailsWith<IllegalArgumentException> { service.writeValue("a", "123") }
@@ -48,7 +39,7 @@ class PluginHostStorageServiceTest {
 
     @Test
     fun controlCharactersAreRejectedInKeysAndPrefixes() {
-        val service = PluginHostStorageService("one", host, MemoryKeyValueStore(), true)
+        val service = PluginHostStorageService("one", host, MemoryKeyValueStore())
         assertFailsWith<IllegalArgumentException> { service.readValue("a\u007f") }
         assertFailsWith<IllegalArgumentException> { service.listKeys("a\u007f") }
     }

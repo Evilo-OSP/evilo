@@ -1,8 +1,6 @@
 package crow.evilo.plugin.catalog
 
 import crow.evilo.model.MediaKind
-import crow.evilo.plugin.api.PluginPermissions
-import crow.evilo.plugin.api.ProtocolRequirement
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
@@ -36,8 +34,6 @@ data class PluginRelease(
     val usable: Boolean = true,
     val minimumHostVersionCode: Long = 1,
     val maximumHostVersionCode: Long? = null,
-    val protocol: ProtocolRequirement = ProtocolRequirement(),
-    val permissions: PluginPermissions = PluginPermissions(),
     val signing: PluginSigningIdentity? = null,
     val manifestSha256: String? = null,
 )

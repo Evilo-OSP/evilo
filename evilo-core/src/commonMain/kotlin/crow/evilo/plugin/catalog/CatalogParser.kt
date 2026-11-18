@@ -2,7 +2,6 @@ package crow.evilo.plugin.catalog
 
 import crow.evilo.plugin.api.PluginJson
 import crow.evilo.network.ktor.PluginUrlPolicy
-import crow.evilo.network.ktor.validatePluginPermissions
 import io.ktor.http.decodeURLPart
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
@@ -68,19 +67,11 @@ class CatalogParser {
                     Regex("[0-9a-f]{64}").matches(signing.publicKeyHex)) { "Invalid publisher signing identity." }
                 require(release.manifestSha256 != null) { "Publisher-signed releases must pin their manifest SHA-256." }
             }
-            require(!release.protocol.requiredCapabilities.contains("storage.kv.v1") || release.permissions.storage) {
-                "Required storage capability must have a matching storage permission."
-            }
             require(Instant.parse(release.publishedAt) in created..updated) { "Release publication date is outside plugin dates." }
             require(release.minimumHostVersionCode > 0 &&
                 (release.maximumHostVersionCode == null || release.maximumHostVersionCode >= release.minimumHostVersionCode)) {
                 "Invalid host version range."
             }
-            require(release.protocol.major > 0 && release.protocol.minimumMinor >= 0) { "Invalid protocol compatibility." }
-            require((release.protocol.requiredCapabilities + release.protocol.optionalCapabilities).all(CAPABILITY::matches)) {
-                "Invalid capability identifiers."
-            }
-            validatePluginPermissions(release.permissions, allowHttp)
         }
         require(plugin.version == plugin.latestRelease.version) { "Plugin version must match its newest listed release." }
         require(plugin.minimumUsableVersionCode in 1..plugin.latestRelease.versionCode) { "Invalid minimum usable plugin version." }

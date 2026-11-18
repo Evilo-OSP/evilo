@@ -27,15 +27,15 @@ internal fun normalizeCatalogJson(catalog: JsonObject): JsonObject {
 private fun normalizePluginJson(plugin: JsonObject): JsonObject {
     val versions = requireNotNull(plugin["availableVersions"]) { "A plugin must declare its availableVersions list." }.jsonArray
     require(versions.size in 1..64) { "A plugin must list 1 to 64 available versions." }
+    val fields = plugin.toMutableMap()
     // Only omitted fields inherit defaults; an explicit release override is never merged or replaced.
-    val inherited = listOf("kinds", "languages", "sourceUrl", "permissions", "protocol", "signing")
+    val inherited = listOf("kinds", "languages", "sourceUrl", "signing")
         .mapNotNull { key -> plugin[key]?.let { key to it } }.toTypedArray()
     val releases = versions.map { normalizeDates(it.jsonObject.withDefaults(*inherited), "publishedAt") }
     val latest = releases.maxBy { release ->
         requireNotNull(release["versionCode"]?.jsonPrimitive?.longOrNull) { "A release must declare its integer versionCode." }
     }
     val dates = releases.map { requireNotNull(it["publishedAt"]) { "A release must declare its publishedAt date." } }
-    val fields = plugin.toMutableMap()
     fields["availableVersions"] = JsonArray(releases)
     plugin["authors"]?.let { authors ->
         fields["authors"] = JsonArray(authors.jsonArray.map { author ->

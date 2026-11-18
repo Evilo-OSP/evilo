@@ -12,21 +12,20 @@ evilo, registration with the bundled source, or particular filename is required.
    `plugin.json`, `plugins.json`, any other name, and URLs without `.json` work.
 3. In evilo, open Browse's Plugin Sources action, choose Add plugin source, paste
    that URL, and subscribe. Open its source catalog, choose a plugin's details,
-   review a compatible release's permissions, and install. Subscription alone
+   review a compatible release, and install. Subscription alone
    does not create installed Browse entries or execute the listed plugins.
 
-The independent template's `:evilo-plugin:exportPluginRelease` task already exports
-a directly usable `plugins.json`, signed manifest, artifacts, and actual source
-archive/hash. You may publish that generated JSON unchanged. For a curated source,
-copy its release metadata into `availableVersions` and keep common fields once
-per plugin. Use the template README for export inputs and commands; hashes and
-source revisions must come from the actual export, not invented values.
+A provider repository's `:exportPluginRelease` task exports a directly usable
+`catalog.json`, signed manifest, artifacts, and actual source archive/hash. You may
+publish that generated JSON unchanged. For a curated source, copy its release
+metadata into `availableVersions` and keep common fields once per plugin. Hashes
+and source revisions must come from the actual export, not invented values.
 
 Every installable package must be signed. Official packages use the App's embedded
 verification key; third-party publishers keep their own private key and publish
 `signing` and `manifestSha256` on each release. A catalog declaration is not trust:
-users explicitly approve the publisher fingerprint, exact version, and permissions
-before execution. No PR adding a publisher key to evilo is required. Catalog
+users explicitly approve the publisher fingerprint and exact version before
+execution. No PR adding a publisher key to evilo is required. Catalog
 inclusion, including in the bundled source, is not a safety review.
 
 ```json
@@ -41,7 +40,7 @@ a real-world identity. Unsigned packages and invalid signatures remain rejected.
 
 There is no separate JSON Schema file to maintain and no `$schema` property to
 add. `CatalogParser` normalizes compact input and then validates the existing
-typed catalog, URL policies, permissions, and release relationships.
+typed catalog, URL policies, and release relationships.
 
 ## Compact example
 
@@ -60,10 +59,6 @@ Replace release fields with real export results before distribution.
       "languages": ["en"],
       "kinds": ["manga"],
       "sourceUrl": "https://code.example.com/reader",
-      "permissions": {
-        "api": {"origins": ["https://api.example.com"]},
-        "media": {"origins": ["https://images.example.com"]}
-      },
       "availableVersions": [
         {
           "version": "1.0.0",
@@ -85,11 +80,10 @@ Authors may be strings or objects such as
 icon displays the plugin name's initial. Dates may be `YYYY-MM-DD` or full
 ISO-8601 timestamps with an offset; ordinary dates mean midnight UTC.
 
-Each release inherits omitted `kinds`, `languages`, `sourceUrl`, `permissions`,
-and `protocol` from its plugin. An explicit release field replaces the entire
-common field, without merging objects or lists. For example, a release-specific
-`permissions` object that omits `media` gets no media origins, even if the plugin
-declares them. Missing members use SDK defaults, not common-field members.
+Each release inherits omitted `kinds`, `languages`, `sourceUrl`, and `protocol`
+from its plugin. An explicit release field replaces the entire common field,
+without merging objects or lists. Missing members use SDK defaults, not
+common-field members.
 
 ## Update a source
 
@@ -100,11 +94,11 @@ version and creation/update dates, and the source's update date, are derived
 unless explicitly supplied. Users receive the new listing when the app refreshes.
 
 Do not reuse version codes or silently replace old release metadata. Changing
-common `permissions`, `protocol`, `kinds`, `languages`, or `sourceUrl` also changes
-older releases that inherit them. When a new release differs, retain explicit
-overrides for older releases or override the new release instead. Approved
-installations keep their recorded permissions; changed normalized release metadata
-blocks opening and requires review, and signed descriptor checks still apply.
+common `protocol`, `kinds`, `languages`, or `sourceUrl` also changes older releases
+that inherit them. When a new release differs, retain explicit overrides for older
+releases or override the new release instead. Approved installations keep their
+recorded metadata; changed normalized release metadata blocks opening and requires
+review, and signed descriptor checks still apply.
 
 Each third-party version requires a new explicit approval. A changed signing key
 is a publisher change, not a transparent update. Installed loads use their recorded
@@ -142,7 +136,7 @@ catalogs share format version 1. The whole UTF-8 document must fit within 2 MiB.
 | `kinds` | Required nonempty subset of `manga`, `novel`, `anime`, and `film`; releases inherit it. |
 | `sourceUrl` | Required source repository URL, not a `.wlm`, `.wasm`, `.pwasm`, or `.cwasm` download. |
 | `availableVersions` | Required 1 to 64 releases, with distinct version strings and version codes. |
-| `permissions`, `protocol` | Optional common release declarations. Without either-level declarations, SDK defaults allow no network origins or storage and require protocol 1.0 with `media.catalog.v1`. |
+| `protocol` | Optional common release declaration. Without it, SDK defaults require protocol 1.0 with `media.catalog.v1`. |
 | `overseas` | Defaults to `false`; publisher-declared overseas availability, not geolocation or a proxy setting. |
 | `nsfw` | Defaults to `false`; publisher-declared adult content, hidden unless enabled in More -> Settings -> Browse and content. |
 | `iconUrl` | Optional HTTP(S) PNG/JPEG/WebP icon; omission or an empty string uses the initial-letter placeholder. Remote SVG is unsupported. |
@@ -160,7 +154,7 @@ not automated content inspection or a parental-control guarantee.
 For installed copies of the same signed plugin ID, classification conservatively
 includes their recorded declarations and their current source metadata, even if
 one installed source is disabled. An uninstalled catalog's same-ID claim is not an
-installed copy and does not silently replace its data or permissions.
+installed copy and does not silently replace its data.
 
 ## Release fields
 
@@ -178,42 +172,41 @@ installed copy and does not silently replace its data or permissions.
 | `minimumHostVersionCode` | Defaults to `1`, compared with the application's integer version code, not the SDK version. |
 | `maximumHostVersionCode` | Optional inclusive upper bound; null means no upper bound. |
 | `protocol` | Inherits plugin requirements; otherwise SDK defaults. Explicit objects replace the common object and use SDK defaults for omitted members. |
-| `permissions` | Inherits plugin permissions; otherwise no network origins or storage. Explicit objects replace the common object. |
 | `signing` | Optional publisher Ed25519 `keyId` and 32-byte lowercase `publicKeyHex`; may inherit from the plugin. Omission only supports legacy official-signed releases. Never automatically trusted. |
 | `manifestSha256` | Exact signed manifest SHA-256; required with `signing`. Installation records pin the verified digest, including for legacy official releases. |
 
-Release identity, kinds, languages, protocol requirements, and permissions must
-match `evilo.descriptor` in the signed manifest and the guest's runtime descriptor.
+Release identity, kinds, languages, and protocol requirements must match
+`evilo.descriptor` in the signed manifest and the guest's runtime descriptor.
 `evilo.sourceRevision` and `evilo.sourceArchiveSha256` in the signed manifest must
 match the catalog. The descriptor fits Wasmline's default 16 KiB metadata-string
 limit. Catalog descriptions, dates, and link destinations are not
 signed claims. The host does not download and inspect source archives or perform
 a reproducible-build comparison; the signing operator must review the actual
-archive and ensure the linked revision contains the released source. The template
-exports actual source files and signs their archive hash, rather than exporting
-a binary-only ZIP as source.
+archive and ensure the linked revision contains the released source. A provider
+repository's exporter includes actual source files and signs their archive hash,
+rather than exporting a binary-only ZIP as source.
 
-## Permissions and compatibility
+## Network and compatibility
 
-Each `permissions.api` and `permissions.media` object has `origins`, `pathPrefixes`,
-`methods`, and lowercase `headers`. Only the needed origins must be listed for
-ordinary GET access: paths default to `["/"]`, methods to `["GET"]`, and headers to
-`["accept", "user-agent"]`. Storage defaults to `false`. Narrow those defaults or
-declare other allowed API methods when the signed plugin needs them.
-Origins are exact HTTP(S) origins with no path,
-query, credentials, or wildcard. Prefixes are absolute paths without traversal or
-encoded delimiters. API requests support GET, HEAD, POST, PUT, PATCH, and DELETE;
-only POST, PUT, and PATCH may have a body, bounded at 64 KiB. Media uses GET only.
-Cookies, redirects, and ambient credentials are disabled. Plugins cannot supply
-forbidden transport headers; the HTTP engine may add standard protocol headers.
-Requesting a permission does not grant it before consent.
+The host imposes no origin allowlist and no per-plugin capability declaration.
+Installing a plugin is the authorization decision; the plugin may request any
+absolute HTTP(S) host, method, path, and header set it needs. The host still
+enforces:
+- HTTPS unless the subscribing catalog was added with explicit cleartext consent;
+- no URL credentials and no path traversal;
+- at most 32 request headers of at most 4096 characters, with cookies, `Host`,
+  `Connection`, `Content-Length`, `Origin`, and forwarding headers rejected;
+- request bodies of at most 64 KiB and per-call response byte limits.
+
+Redirects are not followed. The HTTP engine may add standard protocol headers.
+Plugin key/value storage is always available, isolated by publisher fingerprint
+and signed plugin ID, with limits of 1 MiB total, 256 entries, 64 KiB per value,
+and 128-character keys.
 
 Protocol 1.0 capabilities currently include `media.catalog.v1`, `http.request.v1`,
 and `storage.kv.v1`. A missing required capability or a different protocol major
-rejects the release; an unknown optional capability does not. Requiring storage
-also requires `permissions.storage=true`. A capability describes what the host
-implements; the approved origins and storage flag determine what this plugin may
-actually access.
+rejects the release; an unknown optional capability does not. A capability
+describes what the host implements, not a per-plugin grant.
 
 The repository recommends the highest usable, compatible release for the selected
 content type. It never falls back below a known mandatory floor. Version floors
@@ -222,63 +215,4 @@ floor is scoped to that subscription, including the built-in source; it cannot
 block another source's copy of the same signed plugin ID. Disabling a source
 retains its floors. The built-in subscription can be disabled, not removed.
 Removing a custom source removes its scoped floor, cache, and installations;
-plugin data is retained. Install/update still requires explicit permission review.
-An incompatible mandatory release requires updating the application, not
-installing an older plugin.
-
-## Browse identity and source copies
-
-Source catalogs are the installation entry point and retain All/Installed filters.
-Browse shows enabled sources' installed releases only and checks their actual
-release kinds, not capabilities introduced by a newer catalog release. Withdrawn,
-changed, or mandatory-update installations keep a management entry with their
-blocking reason; disabling a source hides its installations without deleting them.
-
-Duplicate display merging defaults on and uses verified installed `plugin.id`.
-Different publishers cannot coexist under one installed ID: uninstall its copies
-before changing publisher. Third-party storage is additionally namespaced by
-public-key fingerprint, so changing publishers cannot expose the previous data. A matching name, icon, or catalog-only ID
-does not create a verified installation. Original `sourceId:pluginId` records,
-permissions, version floors, timestamps, and per-source actions remain separate.
-The default source is a saved installation key or the oldest installation with
-subscription order as a tie-breaker. An unavailable default requires explicit
-selection; neither search, source filtering, higher mirror versions, nor load
-failure silently selects a replacement. Disabling/removing an implicit duplicate
-default, or updating its installed release, pins its key before the mutation;
-removing it preserves that choice while
-another installation exists, until the user explicitly selects another source.
-
-Same-ID/same-code cross-source differences in release identity, kinds/languages,
-protocol, permissions, source revision, or source archive hash are shown as
-declaration conflicts. Different mirror download URLs alone are not conflicts.
-The detail page distinguishes subscription URLs from actual source-code links,
-shows approved installed permissions separately from requested target permissions,
-and uninstalls one named source copy. Shared plugin KV is not a promise of version
-data compatibility or login synchronization. Source/installation behavior is
-recorded in [the progress ledger](browse-plugin-plan-progress.md); live behavior
-and test results for this redesign are not yet established.
-
-HTTPS is preferred. Plain HTTP needs explicit source consent; signatures remain
-mandatory. Package artifacts must stay in the manifest's origin and standard
-`artifacts/sha256/<prefix>/<hash>.<format>` directory. Host-controlled HTTP does
-not bypass browser CORS or HTTPS-page mixed-content restrictions. Source-code
-links and playback opened in an external application use that application's networking rules,
-not evilo's download policy.
-
-## Bundled source and existing catalogs
-
-`plugin-repository/plugin.json` is the default editable catalog. The app generates
-`BundledPluginCatalogJson` from that one file. Its configured refresh URL is
-`https://raw.githubusercontent.com/crowforkotlin/evilo/main/plugin-repository/plugin.json`;
-this is configuration, not a verified published release. The bundled source stays
-empty until actual signed packages and matching source archives are published.
-
-Renaming the bundled file requires updating `catalogFile` in
-`evilo-app/build.gradle.kts` and `DEFAULT_BUNDLED_CATALOG_URL` in the core's
-`PluginCatalog.kt`. Independent sources do not require an app code change.
-
-Full existing catalogs remain accepted. Explicit fields are preserved, including
-full timestamp representations; only ordinary dates are expanded to UTC midnight.
-Legacy `$schema` and removed review metadata are ignored. Parsing expands compact
-input into the same full typed metadata stored in caches and installation records;
-refreshing unchanged input does not invent new dates or change release permissions.
+plugin data is retained. Install/update still requires explicit release review.
