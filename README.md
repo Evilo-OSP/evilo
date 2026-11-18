@@ -269,7 +269,7 @@ independent of `EVILO_VERSION_NAME`: it is the protocol contract that plugin
 repositories compile against, so it moves only when that module changes. This
 repository consumes the published coordinate; templates consume the same one and
 never copy models or protocols. Until a version is published, publish it locally
-from the SDK repository or use `-Pevilo.sdkPath=../evilo-library` in a plugin
+from the SDK repository or use `-Pevilo.useLocalSdk` in a plugin
 repository. Consolidation preserves the serialized protocol and service packages;
 it does not change the bridge ABI.
 

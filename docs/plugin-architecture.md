@@ -16,7 +16,7 @@ versioned in [`evilo-library`](https://github.com/crowforkotlin/evilo-library) a
 published as `io.github.crowforkotlin.evilo:evilo-library`. This repository pins
 that release in `gradle/libs.versions.toml` (`evilo-plugin-sdk`) and consumes the
 artifact. Plugins pin the same coordinate; no protocol source is copied into the
-template. A local composite (`-Pevilo.sdkPath=../evilo-library`) substitutes the
+template. A local composite (`-Pevilo.useLocalSdk`) substitutes the
 SDK during development.
 The configured SDK version is `1.0.0`; a configured publication is not proof of
 availability, so publish it locally or wait for the Central release.

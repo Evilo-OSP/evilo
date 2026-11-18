@@ -101,7 +101,7 @@ The SDK publication is `io.github.crowforkotlin.evilo:evilo-library`, built and 
 the separate `evilo-library` repository; this repository pins it in the catalog as
 `evilo-plugin-sdk` and consumes the artifact.
 A configured publication is not proof of availability. Templates may explicitly
-substitute `-Pevilo.sdkPath=../evilo-library`; never copy models/service interfaces.
+substitute `-Pevilo.useLocalSdk`; never copy models/service interfaces.
 
 Register modules explicitly and use type-safe `projects.evilo*` accessors. Apply
 serialization for serialized models, and the Wasmline compiler plugin where typed
