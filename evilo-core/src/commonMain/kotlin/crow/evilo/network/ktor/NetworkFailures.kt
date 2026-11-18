@@ -2,7 +2,7 @@ package crow.evilo.network.ktor
 
 enum class NetworkPolicyViolation {
     INVALID_URL, CLEARTEXT_NOT_APPROVED, URL_CREDENTIALS, URL_PATH,
-    ORIGIN_OR_PATH_NOT_APPROVED, METHOD_NOT_APPROVED, REQUEST_BODY, HEADERS_NOT_APPROVED,
+    REQUEST_BODY, HEADERS_NOT_APPROVED,
 }
 
 class NetworkPolicyException(val violation: NetworkPolicyViolation, message: String, cause: Throwable? = null,

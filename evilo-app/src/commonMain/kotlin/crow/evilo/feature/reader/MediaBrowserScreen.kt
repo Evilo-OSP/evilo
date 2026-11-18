@@ -94,7 +94,7 @@ import org.koin.core.parameter.parametersOf
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun MediaBrowserRoute(session: MediaSourceSession, kind: MediaKind, onClose: () -> Unit, modifier: Modifier = Modifier,
-    onReopen: () -> Unit = onClose, onPermissions: (() -> Unit)? = null, loadTimings: List<PluginLoadTiming> = emptyList()) {
+    onReopen: () -> Unit = onClose, onPluginDetails: (() -> Unit)? = null, loadTimings: List<PluginLoadTiming> = emptyList()) {
     val parameters = remember(session, kind) { parametersOf(session, kind) }
     val controller = koinInject<MediaBrowserController>(parameters = { parameters })
     val imageLoader = koinInject<EviloImages>()
@@ -146,8 +146,8 @@ fun MediaBrowserRoute(session: MediaSourceSession, kind: MediaKind, onClose: () 
                     Column(verticalArrangement = Arrangement.spacedBy(EviloSpacing.ExtraSmall)) {
                         Text(session.source.descriptor.name, style = MaterialTheme.typography.titleLarge,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(stringResource(Res.string.source_plugin_version, session.source.descriptor.version,
-                            session.source.descriptor.protocol.major), style = MaterialTheme.typography.labelSmall,
+                        Text(stringResource(Res.string.source_plugin_version, session.source.descriptor.version),
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 },
@@ -179,11 +179,11 @@ fun MediaBrowserRoute(session: MediaSourceSession, kind: MediaKind, onClose: () 
                                     onSearch = { controller.dispatch(MediaBrowserIntent.Search(it)) },
                                     onMore = { controller.dispatch(MediaBrowserIntent.LoadMore) },
                                     onItem = { controller.dispatch(MediaBrowserIntent.OpenItem(it)) }, pagePadding = pagePadding,
-                                    onPermissions = onPermissions, onRetry = retry)
+                                    onPluginDetails = onPluginDetails, onRetry = retry)
                                 MediaBrowserPage.DETAILS -> MediaDetails(displayed, images,
-                                    { controller.dispatch(MediaBrowserIntent.OpenChapter(it)) }, pagePadding, onPermissions, retry)
+                                    { controller.dispatch(MediaBrowserIntent.OpenChapter(it)) }, pagePadding, onPluginDetails, retry)
                                 MediaBrowserPage.READER -> MediaReader(displayed, session, images,
-                                    { controller.dispatch(MediaBrowserIntent.OpenChapter(it)) }, pagePadding, onPermissions, retry)
+                                    { controller.dispatch(MediaBrowserIntent.OpenChapter(it)) }, pagePadding, onPluginDetails, retry)
                             }
                         }
                     EviloProgressIndicator(state.busy, Modifier.align(Alignment.TopCenter).fillMaxWidth())
@@ -209,7 +209,7 @@ private fun mediaFailureTitle(page: MediaBrowserPage): String = stringResource(w
 
 @Composable
 private fun MediaCatalog(state: MediaBrowserState, images: SessionImages, onSearch: (String) -> Unit,
-    onMore: () -> Unit, onItem: (MediaItem) -> Unit, pagePadding: Dp, onPermissions: (() -> Unit)?, onRetry: () -> Unit) {
+    onMore: () -> Unit, onItem: (MediaItem) -> Unit, pagePadding: Dp, onPluginDetails: (() -> Unit)?, onRetry: () -> Unit) {
     var query by rememberSaveable { mutableStateOf(state.query) }
     val gridState = rememberLazyGridState()
     val colors = MaterialTheme.colorScheme
@@ -242,7 +242,7 @@ private fun MediaCatalog(state: MediaBrowserState, images: SessionImages, onSear
                 border = BorderStroke(EviloLayout.BorderWidth, colors.outlineVariant),
                 elevation = CardDefaults.cardElevation(defaultElevation = EviloElevation.Flat),
                 colors = CardDefaults.cardColors(containerColor = colors.surface)) {
-                MediaImage(item.coverUrl, emptyMap(), images, item.title, Modifier.fillMaxWidth().aspectRatio(2f / 3f), onPermissions = onPermissions)
+                MediaImage(item.coverUrl, emptyMap(), images, item.title, Modifier.fillMaxWidth().aspectRatio(2f / 3f), onPluginDetails = onPluginDetails)
                 Column(Modifier.padding(EviloSpacing.Medium), verticalArrangement = Arrangement.spacedBy(EviloSpacing.ExtraSmall)) {
                     Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (item.authors.isNotEmpty()) Text(item.authors.joinToString(", "), style = MaterialTheme.typography.bodySmall,
@@ -261,7 +261,7 @@ private fun MediaCatalog(state: MediaBrowserState, images: SessionImages, onSear
 }
 
 @Composable
-private fun MediaDetails(state: MediaBrowserState, images: SessionImages, onChapter: (Int) -> Unit, pagePadding: Dp, onPermissions: (() -> Unit)?, onRetry: () -> Unit) {
+private fun MediaDetails(state: MediaBrowserState, images: SessionImages, onChapter: (Int) -> Unit, pagePadding: Dp, onPluginDetails: (() -> Unit)?, onRetry: () -> Unit) {
     val item = state.selectedItem ?: return
     val colors = MaterialTheme.colorScheme
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -270,7 +270,7 @@ private fun MediaDetails(state: MediaBrowserState, images: SessionImages, onChap
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(EviloSpacing.Large)) {
                     MediaImage(item.coverUrl, emptyMap(), images, item.title,
-                        Modifier.width(EviloLayout.DetailCoverWidth).aspectRatio(2f / 3f).clip(MaterialTheme.shapes.medium), onPermissions = onPermissions)
+                        Modifier.width(EviloLayout.DetailCoverWidth).aspectRatio(2f / 3f).clip(MaterialTheme.shapes.medium), onPluginDetails = onPluginDetails)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(EviloSpacing.Small)) {
                         Text(item.title, style = MaterialTheme.typography.titleLarge)
                         if (item.authors.isNotEmpty()) Text(item.authors.joinToString(", "), style = MaterialTheme.typography.bodyMedium,
@@ -305,7 +305,7 @@ private fun MediaDetails(state: MediaBrowserState, images: SessionImages, onChap
 }
 
 @Composable
-private fun MediaReader(state: MediaBrowserState, session: MediaSourceSession, images: SessionImages, onChapter: (Int) -> Unit, pagePadding: Dp, onPermissions: (() -> Unit)?, onRetry: () -> Unit) {
+private fun MediaReader(state: MediaBrowserState, session: MediaSourceSession, images: SessionImages, onChapter: (Int) -> Unit, pagePadding: Dp, onPluginDetails: (() -> Unit)?, onRetry: () -> Unit) {
     val index = state.chapterIndex ?: return
     val chapter = state.chapters.getOrNull(index) ?: return
     val content = state.content
@@ -350,7 +350,7 @@ private fun MediaReader(state: MediaBrowserState, session: MediaSourceSession, i
                         Text(stringResource(Res.string.source_image_position, page.index + 1), Modifier.padding(horizontal = pagePadding, vertical = EviloSpacing.ExtraSmall),
                             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         MediaImage(page.imageUrl, page.headers, images, stringResource(Res.string.image_page_description, chapter.title, page.index + 1),
-                            Modifier.fillMaxWidth(), naturalSize = true, pageNumber = page.index + 1, onPermissions = onPermissions)
+                            Modifier.fillMaxWidth(), naturalSize = true, pageNumber = page.index + 1, onPluginDetails = onPluginDetails)
                     }
                 }
                 if (content != null && content.text.isNullOrEmpty() && content.images.isEmpty() && content.streams.isEmpty()) {
@@ -371,9 +371,9 @@ private fun MediaLoadFailure(state: MediaBrowserState, onRetry: () -> Unit, modi
 
 @Composable
 internal fun MediaImage(url: String?, headers: Map<String, String>, loader: SessionImages, description: String,
-    modifier: Modifier = Modifier, naturalSize: Boolean = false, pageNumber: Int? = null, onPermissions: (() -> Unit)? = null) {
+    modifier: Modifier = Modifier, naturalSize: Boolean = false, pageNumber: Int? = null, onPluginDetails: (() -> Unit)? = null) {
     var attempt by remember(url, headers, loader) { mutableStateOf(0) }
     val request = remember(url, headers, loader, attempt, naturalSize) { loader.request(url, headers, attempt, naturalSize) }
     EviloAsyncImage(request, loader.loader, description, modifier, naturalSize, onRetry = { attempt++ },
-        address = url, pageNumber = pageNumber, onPermissions = onPermissions)
+        address = url, pageNumber = pageNumber, onPluginDetails = onPluginDetails)
 }

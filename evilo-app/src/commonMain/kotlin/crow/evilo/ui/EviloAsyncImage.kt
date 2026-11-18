@@ -52,7 +52,7 @@ internal fun EviloAsyncImage(
     presentation: ImagePresentation = if (naturalSize) ImagePresentation.PAGE else ImagePresentation.COVER,
     address: String? = null,
     pageNumber: Int? = null,
-    onPermissions: (() -> Unit)? = null,
+    onPluginDetails: (() -> Unit)? = null,
     onFailure: ((ImageFailure?) -> Unit)? = null,
 ) {
     var state by remember(request, loader) { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
@@ -96,11 +96,11 @@ internal fun EviloAsyncImage(
                         }
                         IconButton(onClick = { showDetails = true }) { Icon(EviloIcons.Info, stringResource(Res.string.image_details)) }
                     }
-                    if (presentation == ImagePresentation.PAGE && failure.kind == ImageFailureKind.PERMISSION && onPermissions != null)
-                        TextButton(onClick = onPermissions) { Text(stringResource(Res.string.plugin_permissions)) }
+                    if (presentation == ImagePresentation.PAGE && failure.kind == ImageFailureKind.PERMISSION && onPluginDetails != null)
+                        TextButton(onClick = onPluginDetails) { Text(stringResource(Res.string.plugin_details_action)) }
                 }
             }
         }
     }
-    if (showDetails && failure != null) EviloImageErrorDetails(failure, onDismiss = { showDetails = false }, onPermissions = onPermissions, onRetry = onRetry)
+    if (showDetails && failure != null) EviloImageErrorDetails(failure, onDismiss = { showDetails = false }, onPluginDetails = onPluginDetails, onRetry = onRetry)
 }

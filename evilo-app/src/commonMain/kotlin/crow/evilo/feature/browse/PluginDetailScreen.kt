@@ -174,7 +174,7 @@ internal fun PluginDetailScreen(state: PluginHomeState, entry: PluginEntry, imag
                 }
             }
             item {
-                EviloSettingsGroup(stringResource(Res.string.plugin_permissions_group)) {
+                EviloSettingsGroup(stringResource(Res.string.plugin_safety_group)) {
                     Column(Modifier.animateContentSize(EviloMotion.componentSpec()).padding(EviloSpacing.Large), verticalArrangement = Arrangement.spacedBy(EviloSpacing.Medium)) {
                         Text(stringResource(Res.string.plugin_safety), style = MaterialTheme.typography.bodySmall)
                     }

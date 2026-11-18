@@ -255,7 +255,7 @@ private fun PluginHomeScreen(state: PluginHomeState, images: EviloImages, host: 
                                                 MediaBrowserRoute(connection.session, browserState.catalog.selectedKind,
                                                     onClose = { dispatch(PluginHomeIntent.ClosePlugin) },
                                                     onReopen = { dispatch(PluginHomeIntent.OpenPlugin(displayedPage.key, rememberSource = false)) },
-                                                    onPermissions = { dispatch(PluginHomeIntent.ManagePlugin(displayedPage.key)) },
+                                                    onPluginDetails = { dispatch(PluginHomeIntent.ManagePlugin(displayedPage.key)) },
                                                     loadTimings = browserState.connection.loadTimings)
                                             } else PluginLoadingScreen(browserState, displayedPage.key, dispatch)
                                         }
@@ -278,9 +278,9 @@ private fun PluginHomeScreen(state: PluginHomeState, images: EviloImages, host: 
         is HomeOverlay.RemoveSource -> SourceRemovalDialog(sourceName(state, overlay.id),
             state.catalog.installed.count { it.sourceId == overlay.id }, !state.canMutate,
             onDismiss = { dispatch(PluginHomeIntent.DismissOverlay) }, onConfirm = { dispatch(PluginHomeIntent.ConfirmSourceRemoval(overlay.id)) })
-        is HomeOverlay.PermissionReview -> state.entries[overlay.key]?.let { entry ->
+        is HomeOverlay.ReleaseReview -> state.entries[overlay.key]?.let { entry ->
             val choice = entry.releases.firstOrNull { it.release == overlay.release }
-            PluginPermissionDialog(entry, overlay.release, !state.canMutate,
+            PluginReleaseReviewDialog(entry, overlay.release, !state.canMutate,
                 blocked = if (choice == null) stringResource(Res.string.plugin_release_changed) else pluginBlockLabel(choice.block) ?: choice.blocked,
                 openAfterInstall = overlay.openAfterInstall,
                 sharedPluginData = state.catalog.installed.any { it.plugin.id == entry.plugin.id },

@@ -215,10 +215,10 @@ class PluginHomeStore(
         val reason = repository.releaseBlockReason(listing, release)
         if (reason != null) return fail(reason)
         if (entry.installation?.release == release && entry.openBlockReason == null) open(entry.key, rememberSource = false)
-        else update { it.copy(overlay = HomeOverlay.PermissionReview(entry.key, release, intent.openAfterInstall)) }
+        else update { it.copy(overlay = HomeOverlay.ReleaseReview(entry.key, release, intent.openAfterInstall)) }
     }
 
-    private fun approve(review: HomeOverlay.PermissionReview, publisherApproved: Boolean) {
+    private fun approve(review: HomeOverlay.ReleaseReview, publisherApproved: Boolean) {
         if (!state.value.canMutate || state.value.overlay != review) return
         val entry = state.value.entries[review.key] ?: return fail("This plugin source is no longer available.")
         val listing = entry.listing ?: return fail("Refresh or enable this plugin source before installing.")
@@ -295,7 +295,7 @@ class PluginHomeStore(
     }
 
     private fun validOverlay(overlay: HomeOverlay, catalog: PluginRepositoryState, entries: Map<String, PluginEntry>): Boolean = when (overlay) {
-        is HomeOverlay.PermissionReview -> entries[overlay.key]?.let { visible(it, catalog) } == true
+        is HomeOverlay.ReleaseReview -> entries[overlay.key]?.let { visible(it, catalog) } == true
         is HomeOverlay.Uninstall -> entries[overlay.key]?.let { it.installation != null && visible(it, catalog) } == true
         is HomeOverlay.RemoveSource -> catalog.subscriptions.any { it.id == overlay.id }
         else -> true

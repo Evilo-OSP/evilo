@@ -31,9 +31,9 @@ were retained. The bundled `plugin-repository/plugin.json` still has no plugins.
 | --- | --- | --- |
 | P0: image evidence and error definition | Typed network/image failures, limits, redaction, and diagnostic UI | A real failure sample and platform evidence; no root-cause claim |
 | P1: state and routes | Typed home pages/overlays, installed projection, preferences, stable source selection, return handling | Authorized compilation/tests and navigation observation |
-| P2: source installation path | Sources/add/settings/catalog/detail pages, single-source checks, permission review, install-only/and-browse targets | Real signed-source installation and failure-path observation |
+| P2: source installation path | Sources/add/settings/catalog/detail pages, single-source checks, release review, install-only/and-browse targets | Real signed-source installation and failure-path observation |
 | P3: Browse and More | Installed-only source groups, compact Info rows, display merging, More/Settings categories | Phone/wide/dark/large-font and accessibility observation |
-| P4: image UI | Missing/loading/failure states, per-image retries, collapsed safe diagnostics, session cancellation | Live HTTP/format/permission failures and Coil/Compose observation; SDK extension only if P0 warrants it |
+| P4: image UI | Missing/loading/failure states, per-image retries, collapsed safe diagnostics, session cancellation | Live HTTP/format/request-rejection failures and Coil/Compose observation; SDK extension only if P0 warrants it |
 | P5: resources, docs, validation | English/Chinese resources, architecture/design/catalog guides, test sources, this ledger | All test results, platform builds, and visual/runtime acceptance remain unobserved |
 
 ## Requirement ownership
@@ -53,8 +53,8 @@ is source implementation present, validation not run unless explicitly stated.
 | S-01: source-management entry and independent actions | `HomeAppBar`, `PluginSourcesScreen`, `AddPluginSourceScreen` | Add/download cancellation store test; pointer separation of card/switch/settings and saved form state unobserved |
 | S-02: source settings and explicit destructive effects | `PluginSourceSettingsScreen`, `SourceRemovalDialog`, repository source mutations | Repository disable/remove/KV/default-pinning tests; built-in source cannot be removed and the subscription limit remains 16 |
 | S-03: per-source All/Installed catalogs | `projectSourceCatalog`, `SourceCatalogScreen` | Projection tests cover installed-release kinds and uninstalled catalog entries; disabled sources remain viewable but blocked for use/install/update |
-| D-01: full detail and contextual actions | `PluginDetailScreen`, `PluginReleaseChoice`, `releaseActionLabel` | Store detail/review/return tests; version list, installed/requested permissions, errors and footer layout still need rendering observation |
-| D-02: accurate sources, permissions and per-copy uninstall | `PluginSourceCopy`, `PluginSourceLinks`, `PluginPermissionDialog`, `PluginUninstallDialog` | Repository stale-release/last-uninstall tests; `PluginHomeStoreTest.approvalRejectsTheExactReviewedReleaseAfterItsPermissionsChange` |
+| D-01: full detail and contextual actions | `PluginDetailScreen`, `PluginReleaseChoice`, `releaseActionLabel` | Store detail/review/return tests; version list, installed release metadata, errors and footer layout still need rendering observation |
+| D-02: accurate sources and per-copy uninstall | `PluginSourceCopy`, `PluginSourceLinks`, `PluginReleaseReviewDialog`, `PluginUninstallDialog` | Repository stale-release/last-uninstall tests; `PluginHomeStoreTest.approvalRejectsTheExactReviewedReleaseAfterItsMetadataChanges` |
 | R-01: default-on display merging | `EviloPreferences` field 5, `setMergeDuplicatePlugins`, `projectBrowse` | Preferences round-trip/failure tests and projection merge-on/off identity tests |
 | R-02: installed signed ID, not name/catalog claim | `BrowsePluginItem.pluginId`, `projectBrowse` | `BrowseProjectionTest.mergingUsesInstalledIdsNotNamesOrUnverifiedCatalogClaims`; all actions still carry the raw installation key |
 | R-03: explicit/oldest source, conflicts and strict NSFW | `preferredInstallationKey`, `installationOrderTime`, `hasReleaseConflict`, `isPluginNsfw`, `pinDefaultSources` | Projection chronological/selection/conflict/NSFW tests and repository tombstone/floor/release-replacement tests; source-filter-origin open does not change the global default |
@@ -82,11 +82,11 @@ These are traceable checks to perform, not success results.
 | Uninstalled same-ID catalog does not replace an installed copy | Projection installed-ID and conservative-classification tests | Not observed |
 | Merging off changes only visible rows | Projection raw-record/count and preference tests | Not observed |
 | Unavailable default requires an explicit choice | Projection disabled/removed/unsupported choice tests; repository preference tombstones | Not observed |
-| Same-ID/same-code declaration conflict is visible and records stay separate | Cross-source conflict test; installed/requested permissions rendered separately | Not observed |
+| Same-ID/same-code declaration conflict is visible and records stay separate | Cross-source conflict test; installed release metadata rendered separately | Not observed |
 | One-copy uninstall retains other copy/KV; last uninstall retries KV cleanup | Repository uninstall/failed deletion tests | Not observed |
 | Install-only closes verification; install-and-browse reuses it | Controller and home store target tests | Not observed |
 | Back/replacement cannot publish an obsolete session, error or image | Controller/store/LatestOperation/reader/image-scope cancellation tests | Not observed |
-| Missing URL, HTTP 403, permission denial, bad format and limits differ | Typed network/image/decoder/fetcher tests and image presentations | Not observed |
+| Missing URL, HTTP 403, request rejection, bad format and limits differ | Typed network/image/decoder/fetcher tests and image presentations | Not observed |
 | Single-image retry does not reload/install the plugin | `MediaImage` attempt state and image request/cache-policy tests | Not observed |
 | Closing/reopening a works session cannot restore stale query text over new default results | Session-keyed `MediaBrowserRoute` composition and browser saved-state removal; nested Back retains the live controller state | Not observed |
 | Cover needing approved request headers, if evidence confirms this requirement | No SDK field added; see conditional work below | Conditional and unconfirmed |

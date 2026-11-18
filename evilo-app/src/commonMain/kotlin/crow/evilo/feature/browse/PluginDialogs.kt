@@ -39,7 +39,7 @@ import crow.evilo.ui.LocalEviloToastState
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
-internal fun PluginPermissionDialog(entry: PluginEntry, release: PluginRelease, busy: Boolean, blocked: String?,
+internal fun PluginReleaseReviewDialog(entry: PluginEntry, release: PluginRelease, busy: Boolean, blocked: String?,
     openAfterInstall: Boolean, sharedPluginData: Boolean, onDismiss: () -> Unit, onApprove: (Boolean) -> Unit) {
     val installed = entry.installation
     val update = installed != null && release.versionCode > installed.release.versionCode

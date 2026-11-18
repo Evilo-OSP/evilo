@@ -15,7 +15,7 @@
     <string name="home_kind_selected">Selected</string>
     <string name="home_kind_plugin_count">%1$d installed entries</string>
     <string name="home_browse_title">%1$s Plugins</string>
-    <string name="home_browse_description">Choose a source, review its code and permissions, and discover content your way.</string>
+    <string name="home_browse_description">Choose a source, review its code, and discover content your way.</string>
     <string name="home_installed_stat">%1$d installed</string>
     <string name="home_filter_all">All plugins</string>
     <string name="home_filter_installed">Installed</string>
@@ -63,7 +63,7 @@
     <string name="plugin_force_update">Mandatory update: older versions cannot be opened.</string>
     <string name="plugin_install_title">Install %1$s?</string>
     <string name="plugin_update_title">Update %1$s?</string>
-    <string name="plugin_permissions">Requested permissions</string>
+    <string name="plugin_details_action">Plugin details</string>
     <string name="plugin_safety">A valid signature does not guarantee safety. A plugin can reach the network and store data on its own. Only install code you trust.</string>
     <string name="plugin_http_warning">This source permits unencrypted HTTP. Its catalog can be altered in transit; package signatures are still required.</string>
     <string name="plugin_accept_install">Approve and Install</string>
@@ -96,7 +96,7 @@
     <string name="more_show_nsfw">Show NSFW plugins</string>
     <string name="more_nsfw_description">Hidden by default. Enabling this may show adult descriptions and icons.</string>
     <string name="more_safety">Plugin Safety</string>
-    <string name="more_safety_description">Read about signatures, permissions, and current app limitations.</string>
+    <string name="more_safety_description">Read about signatures, host request limits, and current app limitations.</string>
     <string name="more_about">evilo %1$s | Protocol %2$d.%3$d</string>
     <string name="more_reader_scope">Image and text content can be viewed in-app. Video streams open in an external player or browser. Library, history, and download management are not implemented.</string>
     <string name="source_disconnect">Close Plugin</string>
@@ -177,7 +177,7 @@
     <string name="plugin_choose_source_description">The selected source is unavailable for this type. Choose explicitly; no automatic source switch is performed.</string>
     <string name="plugin_not_installed">Not installed</string>
     <string name="plugin_only_catalog">Catalog listing only; not verified by installation</string>
-    <string name="plugin_conflicting_sources">Sources declare conflicting metadata for the same version. Records and approved permissions remain separate.</string>
+    <string name="plugin_conflicting_sources">Sources declare conflicting metadata for the same version. Records remain separate.</string>
     <string name="plugin_shared_data">Versions and sources with the same signed plugin ID share plugin storage. Switching versions does not guarantee data compatibility.</string>
     <string name="plugin_installed_at">Installed: %1$s</string>
     <string name="plugin_uninstall_source_description">Remove the installation from %1$s. %2$d other installations remain; private data is erased only after the last installation is removed.</string>
@@ -224,7 +224,7 @@
     <string name="settings_merge_duplicates_description">Show one Browse entry for the same installed plugin from multiple sources. Records remain separate; choose the source in plugin details.</string>
     <string name="settings_source_grouping">Grouped by source</string>
     <string name="settings_source_grouping_description">Browse groups installed entries by their selected source. No installation records are merged.</string>
-    <string name="settings_updates_description">Enabled sources are checked at startup. Checks do not install updates or grant permissions automatically.</string>
+    <string name="settings_updates_description">Enabled sources are checked at startup. Checks do not install updates automatically.</string>
     <string name="settings_installations_description">%1$d source-qualified installations, including disabled or unavailable records</string>
     <string name="settings_image_formats">Supported formats</string>
     <string name="settings_image_formats_description">JPEG, PNG and WebP. Remote SVG and other formats are not currently supported.</string>
@@ -246,7 +246,7 @@
     <string name="image_missing_page">No image address for this page</string>
     <string name="image_cover_failed">Cover failed to load</string>
     <string name="image_page_failed">Page image failed to load</string>
-    <string name="image_permission_denied">Image address or headers not approved</string>
+    <string name="image_permission_denied">Image request rejected by the host</string>
     <string name="image_unsupported">Unsupported or damaged image</string>
     <string name="image_limit">Image exceeds its size limit</string>
     <string name="image_session_closed">Plugin image session disconnected</string>
@@ -262,12 +262,10 @@
     <string name="image_policy_cleartext">HTTP was not approved</string>
     <string name="image_policy_credentials">Credentials in the URL are forbidden</string>
     <string name="image_policy_path">Invalid URL path</string>
-    <string name="image_policy_origin">Origin or path is outside the installed release permissions; no HTTP request was sent</string>
-    <string name="image_policy_method">HTTP method was not approved</string>
     <string name="image_policy_body">Request body is invalid or too large</string>
     <string name="image_policy_headers">A header is unapproved, duplicated or invalid; no HTTP request was sent</string>
     <string name="image_error_retry_hint">Retry this image. If it keeps failing, check the source or network.</string>
-    <string name="image_error_permission_hint">Open plugin details, refresh its source, and review an update that declares this image origin or header. Approve and install the corrected signed release. Reopening the same installed version or changing a local descriptor does not expand its permissions.</string>
+    <string name="image_error_permission_hint">The plugin requested this image in a way the host rejects, such as a forbidden header. Install a signed release that requests it differently.</string>
     <string name="image_error_format_hint">The response must be a valid JPEG, PNG or WebP image.</string>
     <string name="image_error_limit_hint">The compressed size or decoded dimensions exceed the safety limits. Limits cannot be disabled.</string>
     <string name="image_error_session_hint">Open the plugin again. Requests from closed sessions cannot be reused.</string>
@@ -282,7 +280,7 @@
     <string name="plugin_review_title">Review %1$s?</string>
     <string name="plugin_accept_downgrade">Approve and downgrade</string>
     <string name="plugin_accept_reinstall">Approve and reinstall</string>
-    <string name="plugin_permissions_group">Network and storage permissions</string>
+    <string name="plugin_safety_group">Safety</string>
     <string name="plugin_nsfw_sources">Conservative NSFW classification from installed sources: %1$s</string>
     <string name="source_enable">Enable source</string>
     <string name="plugin_reopen">Reopen plugin</string>

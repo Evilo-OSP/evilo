@@ -48,7 +48,7 @@ sealed interface HomeOverlay {
     data object ContentKinds : HomeOverlay
     data object BrowseSources : HomeOverlay
     data class RemoveSource(val id: String) : HomeOverlay
-    data class PermissionReview(val key: String, val release: PluginRelease, val openAfterInstall: Boolean = false) : HomeOverlay
+    data class ReleaseReview(val key: String, val release: PluginRelease, val openAfterInstall: Boolean = false) : HomeOverlay
     data class Uninstall(val key: String) : HomeOverlay
 }
 
@@ -112,7 +112,7 @@ sealed interface PluginHomeIntent {
     data class SelectPreferredInstallation(val key: String) : PluginHomeIntent
     data class ManagePlugin(val key: String, val rememberSourceOnOpen: Boolean = true) : PluginHomeIntent
     data class ReviewRelease(val key: String, val versionCode: Long, val openAfterInstall: Boolean = false) : PluginHomeIntent
-    data class ApproveInstall(val review: HomeOverlay.PermissionReview, val publisherApproved: Boolean = false) : PluginHomeIntent
+    data class ApproveInstall(val review: HomeOverlay.ReleaseReview, val publisherApproved: Boolean = false) : PluginHomeIntent
     data class RequestUninstall(val key: String) : PluginHomeIntent
     data class ConfirmUninstall(val key: String) : PluginHomeIntent
     data object DismissOverlay : PluginHomeIntent

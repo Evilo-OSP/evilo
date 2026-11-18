@@ -46,7 +46,7 @@ class PluginHomeStoreTest {
             val listing = fixture.repository.state.value.listings.single()
             fixture.openSourceDetail(listing.key)
             fixture.store.dispatch(PluginHomeIntent.ReviewRelease(listing.key, release.versionCode))
-            val review = assertIs<HomeOverlay.PermissionReview>(fixture.store.state.value.overlay)
+            val review = assertIs<HomeOverlay.ReleaseReview>(fixture.store.state.value.overlay)
             fixture.store.dispatch(PluginHomeIntent.ApproveInstall(review))
             fixture.awaitIdle()
             assertTrue(fixture.sessions.isEmpty())
@@ -151,7 +151,7 @@ class PluginHomeStoreTest {
             fixture.openSourceDetail(listing.key)
             fixture.store.dispatch(PluginHomeIntent.SearchSource(BUNDLED_SOURCE_ID, "Test"))
             fixture.store.dispatch(PluginHomeIntent.ReviewRelease(listing.key, listing.plugin.latestRelease.versionCode))
-            assertIs<HomeOverlay.PermissionReview>(fixture.store.state.value.overlay)
+            assertIs<HomeOverlay.ReleaseReview>(fixture.store.state.value.overlay)
             fixture.store.dispatch(PluginHomeIntent.Back)
             assertNull(fixture.store.state.value.overlay)
             assertEquals(HomePage.PluginDetail(listing.key), fixture.store.state.value.page)
@@ -172,7 +172,7 @@ class PluginHomeStoreTest {
             fixture.openSourceDetail(listing.key)
             val pages = fixture.store.state.value.pages
             fixture.store.dispatch(PluginHomeIntent.ReviewRelease(listing.key, listing.plugin.latestRelease.versionCode))
-            val review = assertIs<HomeOverlay.PermissionReview>(fixture.store.state.value.overlay)
+            val review = assertIs<HomeOverlay.ReleaseReview>(fixture.store.state.value.overlay)
             fixture.store.dispatch(PluginHomeIntent.ApproveInstall(review))
             fixture.awaitIdle()
             assertEquals(pages, fixture.store.state.value.pages)
@@ -192,7 +192,7 @@ class PluginHomeStoreTest {
             val listing = fixture.repository.state.value.listings.single()
             fixture.openSourceDetail(listing.key)
             fixture.store.dispatch(PluginHomeIntent.ReviewRelease(listing.key, listing.plugin.latestRelease.versionCode, openAfterInstall = true))
-            fixture.store.dispatch(PluginHomeIntent.ApproveInstall(assertIs<HomeOverlay.PermissionReview>(fixture.store.state.value.overlay)))
+            fixture.store.dispatch(PluginHomeIntent.ApproveInstall(assertIs<HomeOverlay.ReleaseReview>(fixture.store.state.value.overlay)))
             fixture.awaitIdle()
             assertEquals(HomePage.PluginBrowser(listing.key), fixture.store.state.value.page)
             assertSame(fixture.sessions.single(), fixture.store.state.value.connection.active?.session)
@@ -214,7 +214,7 @@ class PluginHomeStoreTest {
             val release = listing.plugin.latestRelease
             fixture.openSourceDetail(listing.key)
             fixture.store.dispatch(PluginHomeIntent.ReviewRelease(listing.key, release.versionCode))
-            val review = assertIs<HomeOverlay.PermissionReview>(fixture.store.state.value.overlay)
+            val review = assertIs<HomeOverlay.ReleaseReview>(fixture.store.state.value.overlay)
             val changed = release.copy(manifestSha256 = "0".repeat(64))
             fixture.catalogs.bundled = pluginCatalog(listOf(listing.plugin.copy(availableVersions = listOf(changed))))
             fixture.repository.refresh()
@@ -327,7 +327,7 @@ class PluginHomeStoreTest {
     }
 
     @Test
-    fun hidingNsfwAlsoDismissesItsDetailAndPermissionReview() = runTest {
+    fun hidingNsfwAlsoDismissesItsDetailAndReleaseReview() = runTest {
         val preferences = EviloPreferencesRepository(MemoryDataStore(EviloPreferences(showNsfw = true)))
         val fixture = HomeFixture(this, pluginCatalog(listOf(catalogPlugin().copy(nsfw = true))), preferences)
         try {

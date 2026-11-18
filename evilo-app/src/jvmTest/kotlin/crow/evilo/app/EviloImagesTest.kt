@@ -294,7 +294,7 @@ class EviloImagesTest {
         override fun approveImageRequest(url: String, headers: Map<String, String>): SourceRequest {
             approvals++
             if (closed) throw PluginSessionClosedException()
-            if (!allowed) throw NetworkPolicyException(NetworkPolicyViolation.ORIGIN_OR_PATH_NOT_APPROVED, "Origin rejected.")
+            if (!allowed) throw NetworkPolicyException(NetworkPolicyViolation.HEADERS_NOT_APPROVED, "Header rejected.")
             return SourceRequest(url = url, headers = headers).also { approvedRequests += it }
         }
         override suspend fun imageBytes(url: String, headers: Map<String, String>): ByteArray = bytes

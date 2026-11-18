@@ -15,7 +15,7 @@
     <string name="home_kind_selected">已选中</string>
     <string name="home_kind_plugin_count">%1$d 个已安装入口</string>
     <string name="home_browse_title">%1$s插件</string>
-    <string name="home_browse_description">选择插件源，查看源码与权限，按自己的偏好发现内容。</string>
+    <string name="home_browse_description">选择插件源，查看源码，按自己的偏好发现内容。</string>
     <string name="home_installed_stat">已安装 %1$d 个</string>
     <string name="home_filter_all">全部插件</string>
     <string name="home_filter_installed">已安装</string>
@@ -63,7 +63,7 @@
     <string name="plugin_force_update">需要强制更新，旧版本无法打开。</string>
     <string name="plugin_install_title">安装 %1$s？</string>
     <string name="plugin_update_title">更新 %1$s？</string>
-    <string name="plugin_permissions">请求的权限</string>
+    <string name="plugin_details_action">插件详情</string>
     <string name="plugin_safety">有效签名不保证安全。插件可以自行访问网络和存储数据。只安装你信任的代码。</string>
     <string name="plugin_http_warning">此源允许未加密的 HTTP，JSON 内容可能在传输时被修改；插件包仍须通过签名验证。</string>
     <string name="plugin_accept_install">同意并安装</string>
@@ -96,7 +96,7 @@
     <string name="more_show_nsfw">显示 NSFW 插件</string>
     <string name="more_nsfw_description">默认隐藏，启用后可能显示成人内容的介绍和图标。</string>
     <string name="more_safety">插件安全说明</string>
-    <string name="more_safety_description">查看签名、权限和当前 App 的功能限制。</string>
+    <string name="more_safety_description">查看签名、宿主请求限制和当前 App 的功能限制。</string>
     <string name="more_about">evilo %1$s | 协议 %2$d.%3$d</string>
     <string name="more_reader_scope">图片和文本可在 App 内查看；视频地址交给外部播放器或浏览器。书架、历史和下载管理尚未实现。</string>
     <string name="source_disconnect">关闭插件</string>
@@ -177,7 +177,7 @@
     <string name="plugin_choose_source_description">所选来源无法用于当前类型，请明确选择其他已安装来源，App 不会自动换源。</string>
     <string name="plugin_not_installed">未安装</string>
     <string name="plugin_only_catalog">仅目录提供，尚未经过安装校验</string>
-    <string name="plugin_conflicting_sources">来源对同一版本的声明不一致，各安装记录与已批准权限仍分别保留。</string>
+    <string name="plugin_conflicting_sources">来源对同一版本的声明不一致，各安装记录仍分别保留。</string>
     <string name="plugin_shared_data">同一签名插件 ID 的版本和来源共享插件存储，切换版本不保证数据格式兼容。</string>
     <string name="plugin_installed_at">安装时间：%1$s</string>
     <string name="plugin_uninstall_source_description">移除来自 %1$s 的安装。另有 %2$d 个安装记录；仅最后一个安装被卸载时才删除独立存储数据。</string>
@@ -224,7 +224,7 @@
     <string name="settings_merge_duplicates_description">同一已安装插件来自多个来源时只显示一个入口，安装记录分别保留，可在详情中选择来源。</string>
     <string name="settings_source_grouping">按插件源分组</string>
     <string name="settings_source_grouping_description">浏览页按所选来源分组，不合并原始安装记录。</string>
-    <string name="settings_updates_description">启动时检查启用的来源。检查不会自动安装更新或批准权限。</string>
+    <string name="settings_updates_description">启动时检查启用的来源。检查不会自动安装更新。</string>
     <string name="settings_installations_description">%1$d 个按来源区分的安装记录，包含停用或不可用记录</string>
     <string name="settings_image_formats">支持的格式</string>
     <string name="settings_image_formats_description">JPEG、PNG、WebP；暂不支持远程 SVG 和其他格式。</string>
@@ -246,7 +246,7 @@
     <string name="image_missing_page">该页没有图片地址</string>
     <string name="image_cover_failed">封面加载失败</string>
     <string name="image_page_failed">该页图片加载失败</string>
-    <string name="image_permission_denied">图片地址或请求头未获授权</string>
+    <string name="image_permission_denied">图片请求被宿主拒绝</string>
     <string name="image_unsupported">暂不支持此图片或数据已损坏</string>
     <string name="image_limit">图片超出大小限制</string>
     <string name="image_session_closed">插件图片会话已断开</string>
@@ -262,12 +262,10 @@
     <string name="image_policy_cleartext">未批准 HTTP 明文请求</string>
     <string name="image_policy_credentials">禁止地址中携带凭据</string>
     <string name="image_policy_path">地址路径不合法</string>
-    <string name="image_policy_origin">域名或路径不在已安装版本权限内，尚未发送 HTTP 请求</string>
-    <string name="image_policy_method">HTTP 方法未获批准</string>
     <string name="image_policy_body">请求体不合法或超出大小限制</string>
     <string name="image_policy_headers">请求头未获批准、重复或格式不合法，尚未发送 HTTP 请求</string>
     <string name="image_error_retry_hint">可以重试此图片；持续失败时请检查来源或网络。</string>
-    <string name="image_error_permission_hint">打开插件详情，刷新来源，检查是否有声明此图片域名或请求头的更新，审核权限后安装修正的签名版本。重新打开同一已安装版本或仅修改本地声明不会增加权限。</string>
+    <string name="image_error_permission_hint">插件请求该图片的方式被宿主拒绝，例如使用了禁止的请求头。请安装以合规方式请求的签名版本。</string>
     <string name="image_error_format_hint">响应必须是有效的 JPEG、PNG 或 WebP 图片。</string>
     <string name="image_error_limit_hint">压缩大小或解码尺寸超出限制，不提供关闭限制的操作。</string>
     <string name="image_error_session_hint">请重新打开插件，不能复用已关闭会话的请求。</string>
@@ -282,7 +280,7 @@
     <string name="plugin_review_title">审核 %1$s？</string>
     <string name="plugin_accept_downgrade">同意并降级</string>
     <string name="plugin_accept_reinstall">同意并重新安装</string>
-    <string name="plugin_permissions_group">网络与存储权限</string>
+    <string name="plugin_safety_group">安全说明</string>
     <string name="plugin_nsfw_sources">按较严格的 NSFW 声明显示，声明来自这些已安装来源：%1$s</string>
     <string name="source_enable">启用来源</string>
     <string name="plugin_reopen">重新打开插件</string>

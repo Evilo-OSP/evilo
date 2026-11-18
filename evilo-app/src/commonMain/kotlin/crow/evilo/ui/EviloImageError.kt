@@ -50,7 +50,7 @@ private fun imageFailureHint(failure: ImageFailure): String = stringResource(whe
 
 @Suppress("DEPRECATION")
 @Composable
-internal fun EviloImageErrorDetails(failure: ImageFailure, onDismiss: () -> Unit, onPermissions: (() -> Unit)? = null, onRetry: (() -> Unit)? = null) {
+internal fun EviloImageErrorDetails(failure: ImageFailure, onDismiss: () -> Unit, onPluginDetails: (() -> Unit)? = null, onRetry: (() -> Unit)? = null) {
     val clipboard = LocalClipboardManager.current
     val category = stringResource(Res.string.image_error_category, imageFailureLabel(failure))
     val address = stringResource(Res.string.image_error_address, failure.redactedAddress ?: stringResource(Res.string.image_error_address_omitted))
@@ -64,8 +64,6 @@ internal fun EviloImageErrorDetails(failure: ImageFailure, onDismiss: () -> Unit
             NetworkPolicyViolation.CLEARTEXT_NOT_APPROVED -> Res.string.image_policy_cleartext
             NetworkPolicyViolation.URL_CREDENTIALS -> Res.string.image_policy_credentials
             NetworkPolicyViolation.URL_PATH -> Res.string.image_policy_path
-            NetworkPolicyViolation.ORIGIN_OR_PATH_NOT_APPROVED -> Res.string.image_policy_origin
-            NetworkPolicyViolation.METHOD_NOT_APPROVED -> Res.string.image_policy_method
             NetworkPolicyViolation.REQUEST_BODY -> Res.string.image_policy_body
             NetworkPolicyViolation.HEADERS_NOT_APPROVED -> Res.string.image_policy_headers
         }))
@@ -80,9 +78,9 @@ internal fun EviloImageErrorDetails(failure: ImageFailure, onDismiss: () -> Unit
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(EviloSpacing.Medium)) {
                 SelectionContainer { Text(diagnostic, style = MaterialTheme.typography.bodyMedium) }
                 if (failure.canRetry && onRetry != null) TextButton(onClick = { onDismiss(); onRetry() }) { Text(stringResource(Res.string.source_retry)) }
-                if (failure.kind == ImageFailureKind.PERMISSION && onPermissions != null) TextButton(onClick = {
-                    onDismiss(); onPermissions()
-                }) { Text(stringResource(Res.string.plugin_permissions)) }
+                if (failure.kind == ImageFailureKind.PERMISSION && onPluginDetails != null) TextButton(onClick = {
+                    onDismiss(); onPluginDetails()
+                }) { Text(stringResource(Res.string.plugin_details_action)) }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.home_dismiss)) } },

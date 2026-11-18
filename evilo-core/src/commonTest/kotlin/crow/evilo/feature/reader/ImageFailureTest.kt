@@ -52,10 +52,10 @@ class ImageFailureTest {
         val invalidHeader = assertNotNull(imageFailure(NetworkPolicyException(NetworkPolicyViolation.HEADERS_NOT_APPROVED,
             "Ignored", rejectedHeader = "cookie: secret"), URL))
         assertNull(invalidHeader.rejectedHeader)
-        val origin = assertNotNull(imageFailure(NetworkPolicyException(NetworkPolicyViolation.ORIGIN_OR_PATH_NOT_APPROVED,
+        val blocked = assertNotNull(imageFailure(NetworkPolicyException(NetworkPolicyViolation.REQUEST_BODY,
             "Ignored"), URL))
-        assertEquals(NetworkPolicyViolation.ORIGIN_OR_PATH_NOT_APPROVED, origin.policyViolation)
-        assertEquals(ImageFailureKind.PERMISSION, origin.kind)
+        assertEquals(NetworkPolicyViolation.REQUEST_BODY, blocked.policyViolation)
+        assertEquals(ImageFailureKind.PERMISSION, blocked.kind)
     }
 
     @Test
