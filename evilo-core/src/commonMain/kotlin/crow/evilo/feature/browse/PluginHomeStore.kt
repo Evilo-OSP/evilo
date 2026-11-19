@@ -97,6 +97,7 @@ class PluginHomeStore(
             PluginHomeIntent.ShowAbout -> push(HomePage.About)
             PluginHomeIntent.ShowContentKinds -> update { it.copy(overlay = HomeOverlay.ContentKinds) }
             PluginHomeIntent.Refresh -> refresh(null)
+            PluginHomeIntent.RefreshInstalled -> refreshInstalled()
             is PluginHomeIntent.RefreshSource -> refresh(intent.id)
             is PluginHomeIntent.SelectKind -> if (!state.value.changing) {
                 if (state.value.page is HomePage.PluginBrowser) {
@@ -311,6 +312,16 @@ class PluginHomeStore(
             next.copy(browse = projectBrowse(next.catalog, next.entries, query = next.query, sourceId = next.browseSourceId,
                 searchLabels = next.searchLabels),
                 kindCounts = MediaKind.entries.associateWith { projectBrowse(next.catalog, next.entries, kind = it, sourceId = countSource).count })
+        }
+    }
+
+    private fun refreshInstalled() {
+        if (state.value.catalog.refreshing) return
+        val sourceIds = state.value.catalog.installed.map { it.sourceId }.distinct()
+        if (sourceIds.isEmpty()) return
+        refreshes.launch(onStart = { update { it.copy(actionError = null) } },
+            onFailure = { failure -> fail((failure.message ?: failure.toString()).take(4000)) }) {
+            for (sourceId in sourceIds) repository.refresh(sourceId)
         }
     }
 

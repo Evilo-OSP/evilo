@@ -61,7 +61,7 @@ fun App(debugDiagnostics: Boolean = platformDebugDiagnostics()) {
                 val ready = AppEnvironment.create(factory, context, CoroutineScope(currentCoroutineContext()), debugDiagnostics)
                 owned = ready
                 environment = ready
-                if (!inspection) ready.home.dispatch(PluginHomeIntent.Refresh)
+                if (!inspection) ready.home.dispatch(PluginHomeIntent.RefreshInstalled)
                 awaitCancellation()
             } catch (error: Throwable) {
                 failure = error

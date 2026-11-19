@@ -4,13 +4,23 @@ import crow.evilo.model.MediaKind
 import crow.evilo.plugin.api.HostDescriptor
 import crow.evilo.plugin.api.PluginDescriptor
 import crow.evilo.plugin.api.PluginJson
+import crow.evilo.plugin.subscription.SubscriptionContent
+import crow.evilo.plugin.subscription.SubscriptionIndex
+import crow.evilo.plugin.subscription.SubscriptionParser
+import crow.evilo.plugin.subscription.SubscriptionPointer
 import crow.evilo.network.ktor.BoundedHttpTransport
+import crow.evilo.network.ktor.HttpRedirectRejectedException
+import crow.evilo.network.ktor.HttpResponseLimitException
+import crow.evilo.network.ktor.HttpTransportException
 import crow.evilo.network.ktor.PluginUrlPolicy
 import crow.evilo.storage.CatalogWrite
 import crow.evilo.storage.EviloPreferencesRepository
 import crow.evilo.storage.PluginCatalogStore
 import crow.wasmline.loader.WasmlineTrustedKeys
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -80,7 +90,7 @@ class PluginCatalogRepository(
             if (source.id == LEGACY_BUNDLED_SOURCE_ID) source.copy(id = BUNDLED_SOURCE_ID, url = migrateBundledUrl(source.url))
             else source
         }
-        require(saved.size <= 16 && saved.distinctBy { it.id }.size == saved.size &&
+        require(saved.distinctBy { it.id }.size == saved.size &&
             saved.distinctBy { it.url }.size == saved.size) { "Invalid stored plugin subscriptions." }
         saved.forEach {
             PluginUrlPolicy.check(it.url, it.allowHttp)
@@ -108,7 +118,7 @@ class PluginCatalogRepository(
                 installation.copy(sourceId = BUNDLED_SOURCE_ID, sourceUrl = migrateBundledUrl(installation.sourceUrl))
             else installation
         }
-        require(installed.size <= 256 && installed.distinctBy { it.key }.size == installed.size) { "Invalid stored installations." }
+        require(installed.distinctBy { it.key }.size == installed.size) { "Invalid stored installations." }
         installed.forEach { installation ->
             parser.validate(PluginCatalog(PLUGIN_CATALOG_SCHEMA_VERSION, "stored", "Stored", "",
                 installation.plugin.updatedAt, listOf(installation.plugin)), installation.allowHttp)
@@ -147,53 +157,83 @@ class PluginCatalogRepository(
         }
     }
 
-    suspend fun refresh(sourceId: String? = null) = operations.withLock {
-        check(mutableState.value.initialized) { "Plugin repository is not initialized." }
-        val sources = mutableState.value.subscriptions.filter { it.enabled && (sourceId == null || it.id == sourceId) }
-        require(sourceId == null || sources.isNotEmpty()) { "The plugin source is removed or disabled." }
-        mutableState.update { it.copy(refreshing = true, error = null) }
+    /**
+     * Fetches every enabled source, in bounded parallel batches.
+     *
+     * The mutex guards persistence and published state only: a fetch waits on a remote
+     * server, so holding the mutex across it would block every install, subscription,
+     * and uninstall behind the slowest server in the list.
+     */
+    suspend fun refresh(sourceId: String? = null) {
+        val sources = operations.withLock {
+            check(mutableState.value.initialized) { "Plugin repository is not initialized." }
+            val selected = mutableState.value.subscriptions.filter { it.enabled && (sourceId == null || it.id == sourceId) }
+            require(sourceId == null || selected.isNotEmpty()) { "The plugin source is removed or disabled." }
+            mutableState.update { it.copy(refreshing = true, error = null) }
+            selected
+        }
         try {
             cleanupPluginData(records.read().pendingDataDeletes)
-            for (subscription in sources) {
-                val previous = mutableState.value.snapshots.firstOrNull { it.subscription.id == subscription.id }
-                val previousCheck = mutableState.value.sourceChecks[subscription.id] ?: SourceCheckState()
-                mutableState.update { it.copy(sourceChecks = it.sourceChecks +
-                    (subscription.id to previousCheck.copy(running = true, error = null))) }
-                try {
-                    val catalog = fetch(subscription)
-                    currentCoroutineContext().ensureActive()
-                    val snapshot = CatalogSnapshot(subscription, catalog)
-                    val next = mutableState.value.snapshots.filterNot { it.subscription.id == subscription.id } + snapshot
-                    val floors = nextUpdateFloors(next)
-                    persistAndPublish(CatalogWrite(cachedCatalogs = mapOf(subscription.id to PluginJson.encodeToString(catalog)),
-                        updateFloors = floors)) {
-                        updateFloors = floors
-                        mutableState.update { it.copy(snapshots = next, sourceChecks = it.sourceChecks +
-                            (subscription.id to SourceCheckState(lastSuccessAt = Clock.System.now().toString()))) }
+            sources.chunked(REFRESH_CONCURRENCY).forEach { batch ->
+                operations.withLock {
+                    mutableState.update { current ->
+                        current.copy(sourceChecks = current.sourceChecks + batch.associate { subscription ->
+                            subscription.id to (current.sourceChecks[subscription.id] ?: SourceCheckState()).copy(running = true, error = null)
+                        })
                     }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (failure: Exception) {
-                    val message = failure.message ?: failure.toString()
-                    val snapshots = mutableState.value.snapshots.filterNot { it.subscription.id == subscription.id } +
-                        listOfNotNull(previous?.copy(error = message.take(2000), fromCache = true))
-                    mutableState.update { it.copy(snapshots = snapshots, error = message.take(2000), sourceChecks = it.sourceChecks +
-                        (subscription.id to previousCheck.copy(running = false, error = message.take(2000), usingCache = previous != null))) }
-                } finally {
-                    mutableState.update { current -> current.copy(sourceChecks = current.sourceChecks.mapValues { (id, check) ->
-                        if (id == subscription.id) check.copy(running = false) else check
-                    }) }
+                }
+                val results = coroutineScope {
+                    batch.map { subscription -> async { subscription to fetchOutcome(subscription) } }.awaitAll()
+                }
+                operations.withLock {
+                    val cancelled = currentCoroutineContext().let { context ->
+                        runCatching { context.ensureActive() }.isFailure
+                    }
+                    if (cancelled) return@withLock
+                    for ((subscription, outcome) in results) applyRefresh(subscription, outcome)
                 }
             }
         } finally {
-            mutableState.update { it.copy(refreshing = false) }
+            operations.withLock { mutableState.update { it.copy(refreshing = false) } }
         }
+    }
+
+    private suspend fun fetchOutcome(subscription: CatalogSubscription): Result<PluginCatalog> = try {
+        Result.success(fetch(subscription))
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        Result.failure(failure)
+    }
+
+    private suspend fun applyRefresh(subscription: CatalogSubscription, outcome: Result<PluginCatalog>) {
+        val previous = mutableState.value.snapshots.firstOrNull { it.subscription.id == subscription.id }
+        val previousCheck = mutableState.value.sourceChecks[subscription.id] ?: SourceCheckState()
+        outcome.fold(
+            onSuccess = { catalog ->
+                val snapshot = CatalogSnapshot(subscription, catalog)
+                val next = mutableState.value.snapshots.filterNot { it.subscription.id == subscription.id } + snapshot
+                val floors = nextUpdateFloors(next)
+                persistAndPublish(CatalogWrite(cachedCatalogs = mapOf(subscription.id to PluginJson.encodeToString(catalog)),
+                    updateFloors = floors)) {
+                    updateFloors = floors
+                    mutableState.update { it.copy(snapshots = next, sourceChecks = it.sourceChecks +
+                        (subscription.id to SourceCheckState(lastSuccessAt = Clock.System.now().toString()))) }
+                }
+            },
+            onFailure = { failure ->
+                val message = failure.message ?: failure.toString()
+                val snapshots = mutableState.value.snapshots.filterNot { it.subscription.id == subscription.id } +
+                    listOfNotNull(previous?.copy(error = message.take(2000), fromCache = true))
+                mutableState.update { it.copy(snapshots = snapshots, error = message.take(2000), sourceChecks = it.sourceChecks +
+                    (subscription.id to previousCheck.copy(running = false, error = message.take(2000), usingCache = previous != null))) }
+            },
+        )
     }
 
     suspend fun addSource(url: String, allowHttp: Boolean) = operations.withLock {
         val checked = PluginUrlPolicy.check(url.trim(), allowHttp).toString()
         require(mutableState.value.subscriptions.none { it.url == checked }) { "This plugin source is already subscribed." }
-        require(mutableState.value.subscriptions.size < 16) { "At most 16 plugin sources can be subscribed." }
         var id = "custom.${Clock.System.now().toEpochMilliseconds()}"
         while (mutableState.value.subscriptions.any { it.id == id }) id += "1"
         val source = CatalogSubscription(id = id, url = checked, allowHttp = allowHttp)
@@ -377,7 +417,6 @@ class PluginCatalogRepository(
             current.plugin, release, retainedTimestamp ?: Clock.System.now().toString(),
             current.snapshot.subscription.allowHttp, verifiedManifestSha256)
         val installed = mutableState.value.installed.filterNot { it.key == installation.key } + installation
-        require(installed.size <= 256) { "At most 256 plugins can be installed." }
         require(dataKey(current.plugin.id, release) !in records.read().pendingDataDeletes) { "Plugin data cleanup is incomplete; refresh before installing." }
         persistAndPublish(CatalogWrite(installed = installed)) {
             mutableState.update { it.copy(installed = installed) }
@@ -418,11 +457,112 @@ class PluginCatalogRepository(
         }
     }
 
+    /**
+     * Reads one source. An address may serve a plugin catalog, a hand-maintained URL
+     * collection, or a signed subscription pointer; the document says which.
+     */
     private suspend fun fetch(subscription: CatalogSubscription): PluginCatalog {
         val url = PluginUrlPolicy.check(subscription.url, subscription.allowHttp).toString()
-        val response = transport.fetch(url, mapOf("Accept" to "application/json"), 2 * 1024 * 1024)
-        require(response.statusCode in 200..299) { "Plugin catalog request failed: HTTP ${response.statusCode}." }
-        return parser.parse(response.bytes.decodeToString(throwOnInvalidSequence = true), subscription.allowHttp)
+        val text = download(url, subscription.allowHttp)
+        return when (val content = classifySafely(text, subscription.allowHttp)) {
+            is SubscriptionContent.PluginCatalog -> parseCatalog(text, subscription.allowHttp)
+            is SubscriptionContent.Collection -> throw SourceFailure.Invalid(
+                "this address is a subscription collection listing ${content.document.sources.size} repositories; " +
+                    "subscribe to one of them instead")
+            is SubscriptionContent.Pointer -> fetchIndex(content.document, subscription.allowHttp)
+            null -> parseCatalog(text, subscription.allowHttp)
+        }
+    }
+
+    private fun classifySafely(text: String, allowHttp: Boolean): SubscriptionContent? = try {
+        SubscriptionParser.classify(text, allowHttp)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        // Not every legal plugin catalog declares plugins at parse time in tests; fall through
+        // to the catalog parser, whose message is the one the user needs.
+        null
+    }
+
+    private suspend fun fetchIndex(pointer: SubscriptionPointer, allowHttp: Boolean): PluginCatalog {
+        val signatureUrl = pointer.indexUrl + ".sig"
+        val indexBytes = downloadBytes(pointer.indexUrl, allowHttp)
+        val signature = download(signatureUrl, allowHttp).trim().let { hex ->
+            if (!hex.matches(Regex("[0-9a-f]{128}"))) throw SourceFailure.Untrusted("the signature file is not 128 hexadecimal characters")
+            hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        }
+        val publicKeyUrl = pointer.indexUrl + ".pub"
+        val publicKey = download(publicKeyUrl, allowHttp).trim().let { hex ->
+            if (!hex.matches(Regex("[0-9a-f]{64}"))) throw SourceFailure.Untrusted("the published key is not 64 hexadecimal characters")
+            SubscriptionParser.publicKey(hex)
+        }
+        val index = try {
+            SubscriptionParser.verifyIndex(pointer, indexBytes, signature, publicKey, allowHttp)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: IllegalArgumentException) {
+            throw SourceFailure.Untrusted(failure.message ?: "the index signature does not verify")
+        }
+        return indexAsCatalog(index, allowHttp)
+    }
+
+    /**
+     * The index carries list-level metadata only, so it becomes a catalog whose releases
+     * are fetched on demand from each plugin's own catalog. A catalog needs at least one
+     * release to be valid, so the summary is kept as a plugin with an empty release list
+     * and the catalog parser is bypassed for this shape.
+     */
+    private fun indexAsCatalog(index: SubscriptionIndex, allowHttp: Boolean): PluginCatalog =
+        PluginCatalog(PLUGIN_CATALOG_SCHEMA_VERSION, "subscription", index.name, "", index.updatedAt,
+            index.plugins.map { plugin ->
+                CatalogPlugin(
+                    id = plugin.id,
+                    name = plugin.name,
+                    authors = plugin.authors.map { PluginAuthor(it) },
+                    overseas = false,
+                    languages = emptyList(),
+                    kinds = emptySet(),
+                    nsfw = false,
+                    description = plugin.description,
+                    sourceUrl = plugin.catalogUrl,
+                    iconUrl = plugin.iconUrl,
+                    version = plugin.version,
+                    createdAt = index.updatedAt,
+                    updatedAt = index.updatedAt,
+                    availableVersions = emptyList(),
+                )
+            })
+
+    private suspend fun download(url: String, allowHttp: Boolean): String =
+        downloadBytes(url, allowHttp).decodeToString(throwOnInvalidSequence = true)
+
+    private suspend fun downloadBytes(url: String, allowHttp: Boolean): ByteArray {
+        val checked = PluginUrlPolicy.check(url, allowHttp).toString()
+        val response = try {
+            transport.fetch(checked, mapOf("Accept" to "application/json"), MAX_CATALOG_BYTES)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (redirect: HttpRedirectRejectedException) {
+            throw SourceFailure.Redirect(redirect.statusCode)
+        } catch (limit: HttpResponseLimitException) {
+            throw SourceFailure.TooLarge(limit.maxBytes)
+        } catch (unreachable: HttpTransportException) {
+            throw SourceFailure.Unreachable(unreachable)
+        } catch (failure: Exception) {
+            throw SourceFailure.Unreachable(failure)
+        }
+        if (response.statusCode !in 200..299) throw SourceFailure.HttpStatus(response.statusCode)
+        return response.bytes
+    }
+
+    private fun parseCatalog(text: String, allowHttp: Boolean): PluginCatalog = try {
+        parser.parse(text, allowHttp)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (invalid: IllegalStateException) {
+        throw SourceFailure.Invalid(invalid.message ?: "The document does not follow the catalog format.")
+    } catch (notJson: Exception) {
+        throw SourceFailure.NotJson(notJson)
     }
 
     private fun nextUpdateFloors(snapshots: List<CatalogSnapshot>): Map<String, Long> {
@@ -438,6 +578,9 @@ class PluginCatalogRepository(
     private fun migrateBundledUrl(url: String): String = if (url == LEGACY_BUNDLED_CATALOG_URL) bundledUrl else url
 
     private companion object {
+        /** Parallel catalog fetches. Each source is one request, so a batch bounds memory and sockets. */
+        const val REFRESH_CONCURRENCY = 6
+
         const val LEGACY_BUNDLED_SOURCE_ID = "official"
         const val LEGACY_BUNDLED_CATALOG_ID = "evilo.official"
         const val LEGACY_BUNDLED_CATALOG_URL =

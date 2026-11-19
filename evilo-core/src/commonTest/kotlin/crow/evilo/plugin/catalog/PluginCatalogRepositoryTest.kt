@@ -20,6 +20,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -173,6 +174,26 @@ class PluginCatalogRepositoryTest {
                 assertEquals(targets.map { it.key }.toSet(), fixture.repository.state.value.installed.map { it.key }.toSet())
                 assertEquals(fixture.repository.state.value.installed, fixture.records.read().installed)
             } finally { fixture.transport.close() }
+        }
+    }
+
+    @Test
+    fun aSlowSourceFetchDoesNotBlockOtherRepositoryOperations() = runTest {
+        val fixture = RepositoryFixture(pluginCatalog())
+        val release = CompletableDeferred<Unit>()
+        try {
+            fixture.initialize()
+            fixture.repository.addSource(CUSTOM_URL, false)
+            // The next fetch blocks until this test releases it, standing in for a slow server.
+            fixture.beforeRequest = { url -> if (url.contains("catalog.example.com")) release.await() }
+            val refreshing = launch { fixture.repository.refresh() }
+            // Let the parked fetch start, then prove an unrelated write still lands.
+            runCurrent()
+            fixture.repository.removeSource(fixture.repository.state.value.subscriptions.last().id)
+            release.complete(Unit)
+            refreshing.join()
+        } finally {
+            fixture.transport.close()
         }
     }
 

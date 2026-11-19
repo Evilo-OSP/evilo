@@ -7,9 +7,11 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlin.time.Instant
 
+const val MAX_CATALOG_BYTES = 10 * 1024 * 1024
+
 class CatalogParser {
     fun parse(text: String, allowHttp: Boolean): PluginCatalog {
-        require(text.encodeToByteArray().size <= 2 * 1024 * 1024) { "Plugin catalog exceeds 2 MiB." }
+        require(text.encodeToByteArray().size <= MAX_CATALOG_BYTES) { "Plugin catalog exceeds $MAX_CATALOG_BYTES bytes." }
         val json = normalizeCatalogJson(PluginJson.parseToJsonElement(text).jsonObject)
         return validate(PluginJson.decodeFromJsonElement<PluginCatalog>(json), allowHttp)
     }
@@ -20,7 +22,6 @@ class CatalogParser {
         requireText(catalog.name, 120, "catalog name")
         requireText(catalog.description, 4096, "catalog description", allowEmpty = true)
         Instant.parse(catalog.updatedAt)
-        require(catalog.plugins.size <= 512) { "A catalog may contain at most 512 plugins." }
         require(catalog.plugins.distinctBy { it.id }.size == catalog.plugins.size) { "Duplicate plugin IDs in catalog." }
         catalog.plugins.forEach { plugin -> validatePlugin(plugin, allowHttp) }
         return catalog
@@ -42,7 +43,7 @@ class CatalogParser {
         val created = Instant.parse(plugin.createdAt)
         val updated = Instant.parse(plugin.updatedAt)
         require(updated >= created) { "Plugin update date precedes its creation date." }
-        require(plugin.availableVersions.size in 1..64) { "A plugin must list 1 to 64 available versions." }
+        require(plugin.availableVersions.isNotEmpty()) { "A plugin must list at least one available version." }
         require(plugin.availableVersions.distinctBy { it.versionCode }.size == plugin.availableVersions.size &&
             plugin.availableVersions.distinctBy { it.version }.size == plugin.availableVersions.size) { "Duplicate plugin versions." }
         plugin.availableVersions.forEach { release ->

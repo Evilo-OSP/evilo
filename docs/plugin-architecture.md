@@ -164,7 +164,7 @@ authorization decision.
 
 ## Resource limits and remaining risks
 
-The host bounds catalog/manifest downloads at 2 MiB, artifacts at 64 MiB, API
+The host bounds catalog/manifest downloads at 10 MiB, artifacts at 64 MiB, API
 responses at 2 MiB, images at 16 MiB, and request bodies at 64 KiB. Requests have a
 30-second total timeout and at most four simultaneous exchanges in the one
 application-owned Ktor transport.

@@ -90,6 +90,10 @@ sealed interface PluginHomeIntent {
     data class FilterSource(val id: String, val filter: CatalogFilter) : PluginHomeIntent
     data class SearchInstalled(val query: String) : PluginHomeIntent
     data object Refresh : PluginHomeIntent
+
+    /** Startup refresh: only the sources that own an installed plugin, so a large
+     *  subscription list does not turn application start into hundreds of requests. */
+    data object RefreshInstalled : PluginHomeIntent
     data class RefreshSource(val id: String) : PluginHomeIntent
     data object ShowSources : PluginHomeIntent
     data object ShowSafety : PluginHomeIntent

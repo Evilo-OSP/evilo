@@ -42,6 +42,85 @@ There is no separate JSON Schema file to maintain and no `$schema` property to
 add. `CatalogParser` normalizes compact input and then validates the existing
 typed catalog, URL policies, and release relationships.
 
+
+## Collect many repositories under one address
+
+A plugin source describes plugins. A **subscription** describes sources, so one
+address can bring in many publishers without the user pasting each URL.
+
+Three document shapes are recognised by their fields, so an existing plugin
+catalog keeps working unchanged:
+
+| Shape | Declares | Meaning |
+| --- | --- | --- |
+| Plugin source | `plugins` | The document itself lists installable plugins |
+| Collection | `sources` | A hand-maintained list of plugin source URLs |
+| Subscription pointer | `indexUrl` | A signed index that already lists every plugin |
+
+A document must declare exactly one of the three; declaring two or none is rejected.
+
+### Collection
+
+```json
+{
+  "name": "Awesome evilo plugins",
+  "sources": [
+    "https://raw.githubusercontent.com/alice/alice-plugin/main/catalog.json",
+    "https://raw.githubusercontent.com/bob/bob-plugin/main/catalog.json"
+  ]
+}
+```
+
+Each entry is fetched separately. Twenty repositories cost twenty requests, so
+this shape suits a short, stable list. Entries must be unique, absolute HTTP(S)
+URLs, and one collection cannot list another collection.
+
+### Subscription pointer
+
+```json
+{
+  "name": "Awesome evilo plugins",
+  "indexUrl": "https://example.com/index.json",
+  "signingKeyFingerprint": "<64 lowercase hexadecimal characters>",
+  "keyId": "subscription"
+}
+```
+
+The app fetches three files beside the index:
+
+| File | Contents |
+| --- | --- |
+| `index.json` | Every plugin of every listed repository, already merged |
+| `index.json.sig` | Ed25519 signature over the exact `index.json` bytes, 128 hex characters |
+| `index.json.pub` | The signing public key, 64 hex characters |
+
+Two checks run before any plugin is listed:
+
+1. `SHA-256(index.json.pub)` must equal `signingKeyFingerprint`.
+2. The signature must verify against `index.json.pub` over the exact bytes.
+
+A host that swaps the index, the signature, or the public key therefore fails
+unless it also controls the fingerprint the user subscribed to. One thousand
+repositories cost two requests: the pointer and the index.
+
+The index carries `id`, `name`, `version`, `versionCode`, `iconUrl`, `authors`,
+`description`, and `catalogUrl` per plugin. The list renders from those fields;
+opening a plugin fetches its own catalog, which stays authoritative for releases,
+signatures, and source archives.
+
+### Publishing a subscription
+
+The index is derived data, not hand-maintained. `evilo-subscribe-template` holds
+the reference implementation:
+
+- `sources.txt` — one plugin repository URL per line, the only hand-edited input
+- `scripts/build_index.py` — fetches every source, merges the records, signs the index
+- `.github/workflows/build-index.yml` — runs the build on push and commits the outputs
+
+Because the index is rebuilt from scratch, a repository that publishes a new
+version, changes a description, or withdraws a release is reflected on the next
+build without editing the collection.
+
 ## Compact example
 
 The URLs, revision, and hash below are illustrative, not published releases.
@@ -124,7 +203,7 @@ existing installations of that release can no longer open from that source.
 
 IDs use lowercase letters, digits, and separated `.`, `_`, or `-` components and
 start with a letter. Unknown optional JSON fields are ignored. Compact and full
-catalogs share format version 1. The whole UTF-8 document must fit within 2 MiB.
+catalogs share format version 1. The whole UTF-8 document must fit within 10 MiB.
 
 ## Plugin fields
 

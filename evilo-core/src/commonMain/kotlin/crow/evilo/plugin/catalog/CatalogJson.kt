@@ -12,7 +12,6 @@ import kotlin.time.Instant
 
 internal fun normalizeCatalogJson(catalog: JsonObject): JsonObject {
     val entries = requireNotNull(catalog["plugins"]) { "A plugin source must declare its plugins list." }.jsonArray
-    require(entries.size <= 512) { "A catalog may contain at most 512 plugins." }
     val plugins = entries.map { normalizePluginJson(it.jsonObject) }
     val updatedAt = plugins.map { it.getValue("updatedAt") }.maxByOrNull { timestamp(it) }
         ?: JsonPrimitive("1970-01-01T00:00:00Z")
@@ -26,7 +25,7 @@ internal fun normalizeCatalogJson(catalog: JsonObject): JsonObject {
 
 private fun normalizePluginJson(plugin: JsonObject): JsonObject {
     val versions = requireNotNull(plugin["availableVersions"]) { "A plugin must declare its availableVersions list." }.jsonArray
-    require(versions.size in 1..64) { "A plugin must list 1 to 64 available versions." }
+    require(versions.isNotEmpty()) { "A plugin must list at least one available version." }
     val fields = plugin.toMutableMap()
     // Only omitted fields inherit defaults; an explicit release override is never merged or replaced.
     val inherited = listOf("kinds", "languages", "sourceUrl", "signing")
